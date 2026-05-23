@@ -29,6 +29,29 @@ targets:
       - "已截止"
     note: "只通知，不自動登入、不自動購買。"
 
+  - name: "中信兄弟售票 example"
+    url: "https://tix.ctbcsports.com/BROTHERS/UTK0204_?PERFORMANCE_ID=P16BP6ZZ&PRODUCT_ID=P16ANF0N"
+    enabled: true
+    checkIntervalSeconds: 180
+    timeoutMs: 45000
+    keywords:
+      - "立即購票"
+      - "我要購票"
+      - "可購買"
+      - "熱區"
+      - "剩餘"
+      - "空位"
+      - "加入購物車"
+    negativeKeywords:
+      - "已售完"
+      - "銷售一空"
+      - "暫無票券"
+      - "目前無票券"
+      - "尚未開賣"
+      - "截止販售"
+      - "已截止"
+    note: "只通知，不自動登入、不自動購買。"
+
   - name: "ibon example"
     url: "https://orders.ibon.com.tw/application/UTK02/UTK0201_000.aspx?PERFORMANCE_ID=B0B6QO2Q&PRODUCT_ID=B0AP9IZH&strItem=WEB%E7%B6%B2%E7%AB%99%E5%85%A5%E5%8F%A31"
     enabled: true
