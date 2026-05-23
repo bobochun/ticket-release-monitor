@@ -1,0 +1,35 @@
+{
+  "name": "ticket-release-monitor",
+  "version": "0.1.0",
+  "description": "A conservative ticket release monitoring notifier with manual purchase only.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "check": "tsx src/index.ts check",
+    "watch": "tsx src/index.ts watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "keywords": ["ticket", "monitor", "release", "playwright", "telegram"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "js-yaml": "^4.1.0",
+    "playwright": "^1.49.1",
+    "tsx": "^4.19.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.10.2",
+    "eslint": "^9.17.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.19.1",
+    "vitest": "^2.1.8"
+  }
+}
