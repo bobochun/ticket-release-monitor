@@ -1,0 +1,112 @@
+# Copy this file to config/targets.yml for local use:
+# cp config/targets.multi-platform.example.yml config/targets.yml
+#
+# Do not commit config/targets.yml if it contains private or personal monitoring URLs.
+# This project only checks visible page text and sends notifications.
+# It does not bypass CAPTCHA, queues, login, seat selection, checkout, or payment.
+
+targets:
+  - name: "FamiTicket / FamiLife - Guardians example"
+    url: "https://guardians.fami.life/UTK0204_?PERFORMANCE_ID=P17ITAUR&PRODUCT_ID=P15UU08Q"
+    enabled: true
+    checkIntervalSeconds: 180
+    timeoutMs: 45000
+    keywords:
+      - "立即購票"
+      - "我要購票"
+      - "可購買"
+      - "熱區"
+      - "剩餘"
+      - "空位"
+      - "加入購物車"
+    negativeKeywords:
+      - "已售完"
+      - "銷售一空"
+      - "暫無票券"
+      - "目前無票券"
+      - "尚未開賣"
+      - "截止販售"
+      - "已截止"
+    note: "只通知，不自動登入、不自動購買。"
+
+  - name: "ibon example"
+    url: "https://orders.ibon.com.tw/application/UTK02/UTK0201_000.aspx?PERFORMANCE_ID=B0B6QO2Q&PRODUCT_ID=B0AP9IZH&strItem=WEB%E7%B6%B2%E7%AB%99%E5%85%A5%E5%8F%A31"
+    enabled: true
+    checkIntervalSeconds: 180
+    timeoutMs: 45000
+    keywords:
+      - "立即訂購"
+      - "立即購票"
+      - "可訂購"
+      - "可購買"
+      - "剩餘"
+      - "空位"
+      - "選擇票區"
+    negativeKeywords:
+      - "已售完"
+      - "售完"
+      - "銷售一空"
+      - "目前無票券"
+      - "暫無票券"
+      - "尚未開賣"
+      - "已截止"
+    note: "ibon 頁面若要求驗證，程式只通知人工處理。"
+
+  - name: "KKTIX placeholder"
+    url: "https://kktix.com/events/YOUR_EVENT_ID"
+    enabled: false
+    checkIntervalSeconds: 180
+    timeoutMs: 45000
+    keywords:
+      - "立即報名"
+      - "下一步"
+      - "可購買"
+      - "剩餘"
+      - "Available"
+      - "Register"
+    negativeKeywords:
+      - "已額滿"
+      - "售完"
+      - "Sold Out"
+      - "暫無票券"
+      - "尚未開賣"
+      - "活動已結束"
+    note: "把 url 換成實際 KKTIX 活動頁後再 enabled: true。"
+
+  - name: "tixCraft placeholder"
+    url: "https://tixcraft.com/activity/detail/YOUR_EVENT_ID"
+    enabled: false
+    checkIntervalSeconds: 180
+    timeoutMs: 45000
+    keywords:
+      - "立即購票"
+      - "購票"
+      - "剩餘"
+      - "可購買"
+      - "下一步"
+    negativeKeywords:
+      - "已售完"
+      - "售完"
+      - "暫無票券"
+      - "尚未開賣"
+      - "活動已結束"
+    note: "拓元若遇排隊或驗證，程式只通知人工處理。"
+
+  - name: "ERA Ticket placeholder"
+    url: "https://ticket.com.tw/application/UTK01/UTK0101_"
+    enabled: false
+    checkIntervalSeconds: 180
+    timeoutMs: 45000
+    keywords:
+      - "立即購票"
+      - "購票"
+      - "可購買"
+      - "剩餘"
+      - "空位"
+    negativeKeywords:
+      - "已售完"
+      - "售完"
+      - "暫無票券"
+      - "尚未開賣"
+      - "已截止"
+    note: "把 url 換成年代售票實際活動頁後再 enabled: true。"
