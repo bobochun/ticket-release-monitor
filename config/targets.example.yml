@@ -1,0 +1,34 @@
+targets:
+  - name: "Example Ticket Page"
+    url: "https://example.com/tickets"
+    enabled: true
+    checkIntervalSeconds: 180
+    timeoutMs: 30000
+    keywords:
+      - "Buy now"
+      - "Available"
+      - "Tickets"
+      - "Add to cart"
+    negativeKeywords:
+      - "Sold out"
+      - "Unavailable"
+      - "Not on sale"
+    note: "Notification only. Manual purchase required."
+
+  - name: "範例票券頁面"
+    url: "https://example.com/events"
+    enabled: false
+    checkIntervalSeconds: 180
+    timeoutMs: 30000
+    keywords:
+      - "立即購票"
+      - "可購買"
+      - "熱區"
+      - "剩餘"
+      - "加入購物車"
+    negativeKeywords:
+      - "已售完"
+      - "暫無票券"
+      - "銷售一空"
+      - "尚未開賣"
+    note: "只提醒，不自動購買。"
