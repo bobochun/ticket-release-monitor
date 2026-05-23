@@ -10,7 +10,7 @@
       ]
     }
   },
-  "postCreateCommand": "npm install",
+  "postCreateCommand": "npm install && npx playwright install --with-deps chromium",
   "forwardPorts": [],
   "remoteUser": "node"
 }
