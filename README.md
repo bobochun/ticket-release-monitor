@@ -16,6 +16,26 @@
 
 詳細設定請看 [docs/OCR.md](docs/OCR.md)。
 
+## 公開票區逐列解析
+
+Ticket Radar 現在會優先解析公開票區 row，而不是先用整頁關鍵字一刀切。這修正了常見誤判：頁首有「登入 / 會員 / 購物車」，但主內容其實已公開顯示票區、票價、空位時，不會再直接判 `LOGIN_REQUIRED`。
+
+新的 row-level availability 會逐列判斷：
+
+```txt
+內野南A區下層 400 熱賣中
+內野西C區下層 500 8
+內野D區下層 500 售完
+```
+
+`售完` 只代表該列售完，不會讓整場變成 unavailable。若你指定 `C區`，系統會命中 `內野西C區下層 / 500 / 剩餘 8`。
+
+支援範圍請看：
+
+- [docs/ROW_LEVEL_AVAILABILITY.md](docs/ROW_LEVEL_AVAILABILITY.md)
+- [docs/PLATFORM_PARSERS.md](docs/PLATFORM_PARSERS.md)
+- [docs/MANUAL_PARSE.md](docs/MANUAL_PARSE.md)
+
 ## 安全限制
 
 本工具不會：
@@ -215,4 +235,7 @@ Vercel Hobby 內建 Cron 只能 daily。要每 5 分鐘請用外部 scheduler，
 - [Telegram 設定](docs/TELEGRAM_SETUP.md)
 - [Discord 設定](docs/DISCORD_SETUP.md)
 - [公開票況圖片 OCR](docs/OCR.md)
+- [Manual Parse](docs/MANUAL_PARSE.md)
+- [平台 Parser](docs/PLATFORM_PARSERS.md)
+- [逐列票區判斷](docs/ROW_LEVEL_AVAILABILITY.md)
 - [安全政策](docs/SAFETY.md)

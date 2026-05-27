@@ -73,7 +73,7 @@ export function TargetList({
     const body = await response.json().catch(() => ({}));
     setMessage(
       response.ok
-        ? `${target.name}：${statusLabel(body.result.status)}，${body.result.message}`
+        ? `${target.name}：${statusLabel(body.result.status)}，${body.result.message} 可用 ${body.result.availableAreaCount ?? 0} 區，售完 ${body.result.soldOutAreaCount ?? 0} 區。最佳命中：${body.result.bestAvailableArea?.areaName ?? "無"}`
         : body.error || "手動檢查失敗。"
     );
     setBusyId(null);
@@ -197,6 +197,12 @@ export function TargetList({
                 <Trash2 size={17} />
                 刪除
               </button>
+            </div>
+
+            <div className="mt-3 rounded-md bg-teal-50 p-3 text-xs font-semibold leading-5 text-teal-900">
+              Parser：{platform.parserId}。可解析欄位：{platform.tableHeaderKeywords.join("、")}。
+              Row-level 平台會逐列判斷，售完只代表單一票區，不會直接判整場無票。
+              OCR {process.env.NEXT_PUBLIC_OCR_ENABLED === "true" ? "已啟用" : "預設由伺服器設定控制"}，只辨識公開票況圖，不辨識驗證碼。
             </div>
 
             <details className="mt-4">

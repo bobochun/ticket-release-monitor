@@ -1,4 +1,16 @@
-import type { CheckResult, CheckStatus, Target } from "@/src/shared/types";
+import type {
+  CheckResult,
+  CheckSource,
+  CheckStatus,
+  ParsedAvailability,
+  ParsedTicketArea,
+  Target
+} from "@/src/shared/types";
+import { getParserForPlatform } from "./parsers/parserRegistry";
+import { hasMeaningfulTicketContent } from "./parsers/genericAvailabilityParser";
+import { keywordHits, normalizeText } from "./text";
+
+export { keywordHits, normalizeText };
 
 export const BOT_CHECK_TEXT = [
   "captcha",
@@ -13,6 +25,11 @@ export const BOT_CHECK_TEXT = [
   "security check",
   "access denied",
   "challenge",
+  "cf-challenge",
+  "cf-ray",
+  "challenge-platform",
+  "checking your browser",
+  "just a moment",
   "請完成驗證",
   "驗證碼",
   "機器人",
@@ -34,59 +51,124 @@ export const QUEUE_TEXT = [
 ];
 
 export const LOGIN_TEXT = [
-  "登入",
-  "會員登入",
-  "login",
-  "log in",
-  "sign in",
-  "member login"
+  "請先登入",
+  "必須登入",
+  "登入後才能",
+  "會員登入後",
+  "login required",
+  "sign in required",
+  "please log in",
+  "please sign in"
 ];
 
-export type SafetyDetection = {
-  status: Extract<CheckStatus, "BOT_CHECK" | "QUEUE_DETECTED" | "LOGIN_REQUIRED">;
-  hits: string[];
+export type AccessBarrierType =
+  | "none"
+  | "cloudflare"
+  | "turnstile"
+  | "captcha"
+  | "queue"
+  | "login_required";
+
+export type AccessBarrier = {
+  barrierType: AccessBarrierType;
+  confidence: number;
+  message: string;
 };
 
-export function normalizeText(text: string): string {
-  return text.replace(/\s+/g, " ").trim().toLowerCase();
-}
+export type DetectionInput = {
+  target: Target;
+  text: string;
+  html?: string;
+  startedAt?: number;
+  source?: CheckSource;
+};
 
-export function keywordHits(text: string, keywords: string[]): string[] {
-  const normalized = normalizeText(text);
-  return keywords
-    .map((keyword) => keyword.trim())
-    .filter(Boolean)
-    .filter((keyword) => normalized.includes(normalizeText(keyword)));
-}
-
-export function detectSafetyStatus(text: string): SafetyDetection | null {
-  const botHits = keywordHits(text, BOT_CHECK_TEXT);
-  if (botHits.length > 0) {
-    return { status: "BOT_CHECK", hits: botHits };
+export function detectAccessBarrier(input: {
+  text: string;
+  html?: string;
+  url?: string;
+}): AccessBarrier {
+  const meaningful = hasMeaningfulTicketContent(input);
+  if (meaningful) {
+    return {
+      barrierType: "none",
+      confidence: 0,
+      message: "頁面包含公開票區或票價資訊，繼續解析。"
+    };
   }
 
-  const queueHits = keywordHits(text, QUEUE_TEXT);
+  const haystack = `${input.url || ""}\n${input.text}\n${input.html || ""}`;
+  const turnstileHits = keywordHits(haystack, ["turnstile", "cf-turnstile"]);
+  if (turnstileHits.length > 0) {
+    return {
+      barrierType: "turnstile",
+      confidence: 0.98,
+      message: "偵測到 Cloudflare Turnstile 或人機驗證，已停止本次檢查。"
+    };
+  }
+
+  const cloudflareHits = keywordHits(haystack, [
+    "cloudflare",
+    "just a moment",
+    "checking your browser",
+    "cf-challenge",
+    "cf-ray",
+    "challenge-platform"
+  ]);
+  if (cloudflareHits.length > 0) {
+    return {
+      barrierType: "cloudflare",
+      confidence: 0.95,
+      message: "偵測到 Cloudflare challenge，已停止本次檢查。"
+    };
+  }
+
+  const captchaHits = keywordHits(haystack, BOT_CHECK_TEXT);
+  if (captchaHits.length > 0) {
+    return {
+      barrierType: "captcha",
+      confidence: 0.9,
+      message: "偵測到 CAPTCHA 或 bot check，已停止本次檢查。"
+    };
+  }
+
+  const queueHits = keywordHits(haystack, QUEUE_TEXT);
   if (queueHits.length > 0) {
-    return { status: "QUEUE_DETECTED", hits: queueHits };
+    return {
+      barrierType: "queue",
+      confidence: 0.88,
+      message: "偵測到排隊或 waiting room，已停止本次檢查。"
+    };
   }
 
-  const loginHits = keywordHits(text, LOGIN_TEXT);
+  const loginHits = keywordHits(haystack, LOGIN_TEXT);
   if (loginHits.length > 0) {
-    return { status: "LOGIN_REQUIRED", hits: loginHits };
+    return {
+      barrierType: "login_required",
+      confidence: 0.75,
+      message: "頁面主要內容要求登入後才能查看，已停止本次檢查。"
+    };
   }
 
+  return { barrierType: "none", confidence: 0, message: "未偵測到存取阻擋。" };
+}
+
+export function detectSafetyStatus(text: string): { status: Extract<CheckStatus, "BOT_CHECK" | "QUEUE_DETECTED" | "LOGIN_REQUIRED">; hits: string[] } | null {
+  const barrier = detectAccessBarrier({ text });
+  if (barrier.barrierType === "queue") return { status: "QUEUE_DETECTED", hits: keywordHits(text, QUEUE_TEXT) };
+  if (barrier.barrierType === "login_required") return { status: "LOGIN_REQUIRED", hits: keywordHits(text, LOGIN_TEXT) };
+  if (["cloudflare", "turnstile", "captcha"].includes(barrier.barrierType)) {
+    return { status: "BOT_CHECK", hits: keywordHits(text, BOT_CHECK_TEXT) };
+  }
   return null;
 }
 
-function result(
+function baseResult(
   target: Target,
   status: CheckStatus,
   message: string,
   startedAt: number,
-  matchedKeywords: string[] = [],
-  matchedAreas: string[] = [],
-  matchedPrices: string[] = [],
-  error?: string
+  extras: Partial<CheckResult> = {}
 ): CheckResult {
   return {
     targetId: target.id,
@@ -94,52 +176,142 @@ function result(
     url: target.url,
     status,
     message,
-    matchedKeywords,
-    matchedAreas,
-    matchedPrices,
+    matchedKeywords: [],
+    matchedAreas: [],
+    matchedPrices: [],
+    parsedAreas: [],
+    eventTitle: null,
+    eventDate: null,
+    venue: null,
+    bestAvailableArea: null,
+    availableAreaCount: 0,
+    soldOutAreaCount: 0,
+    source: "auto_fetch",
     botCheckDetected: status === "BOT_CHECK",
     checkedAt: new Date().toISOString(),
     durationMs: Date.now() - startedAt,
-    error: error ?? null
+    error: null,
+    ...extras
   };
 }
 
-export function detectFromText(target: Target, text: string, startedAt = Date.now()): CheckResult {
-  if (!target.enabled) {
-    return result(target, "DISABLED", "目標未啟用，本次略過。", startedAt);
+export function detectFromText(target: Target, text: string, startedAt = Date.now(), html = "", source: CheckSource = "auto_fetch"): CheckResult {
+  return detectAvailability({ target, text, html, startedAt, source });
+}
+
+export function detectAvailability(input: DetectionInput): CheckResult {
+  const startedAt = input.startedAt ?? Date.now();
+  const source = input.source ?? "auto_fetch";
+  const html = input.html ?? "";
+
+  if (!input.target.enabled && source !== "manual_parse") {
+    return baseResult(input.target, "DISABLED", "目標未啟用，本次略過。", startedAt, { source });
   }
 
-  const safety = detectSafetyStatus(text);
-  if (safety?.status === "BOT_CHECK") {
-    return result(
-      target,
-      "BOT_CHECK",
-      "偵測到驗證或 bot check，已停止本次檢查，請人工處理。",
-      startedAt,
-      safety.hits
-    );
+  const parser = getParserForPlatform(input.target.platform);
+  const parsed = parser({ target: input.target, html, text: input.text });
+
+  if (parsed.areas.length > 0) {
+    return resultFromParsedAvailability(input.target, input.text, parsed, startedAt, source);
   }
 
-  if (safety?.status === "QUEUE_DETECTED") {
-    return result(
-      target,
-      "QUEUE_DETECTED",
-      "偵測到排隊或 waiting room，已停止本次檢查，請人工處理。",
-      startedAt,
-      safety.hits
-    );
+  const barrier = detectAccessBarrier({ text: input.text, html, url: input.target.url });
+  if (barrier.barrierType !== "none") {
+    const status =
+      barrier.barrierType === "queue"
+        ? "QUEUE_DETECTED"
+        : barrier.barrierType === "login_required"
+          ? "LOGIN_REQUIRED"
+          : "BOT_CHECK";
+    return baseResult(input.target, status, `${barrier.message} 可使用 Manual Parse 手動貼上公開票區內容解析。`, startedAt, {
+      source,
+      matchedKeywords: keywordHits(input.text, [...BOT_CHECK_TEXT, ...QUEUE_TEXT, ...LOGIN_TEXT]),
+      botCheckDetected: status === "BOT_CHECK"
+    });
   }
 
-  if (safety?.status === "LOGIN_REQUIRED") {
-    return result(
-      target,
-      "LOGIN_REQUIRED",
-      "偵測到需要登入，已停止本次檢查，請人工開啟官方頁面處理。",
-      startedAt,
-      safety.hits
-    );
+  return fallbackKeywordDetection(input.target, input.text, startedAt, parsed, source);
+}
+
+function resultFromParsedAvailability(
+  target: Target,
+  text: string,
+  parsed: ParsedAvailability,
+  startedAt: number,
+  source: CheckSource
+): CheckResult {
+  const blacklist = target.areaBlacklist;
+  const rowAllowed = (area: ParsedTicketArea) => keywordHits(area.areaName, blacklist).length === 0;
+  const areaMatches = (area: ParsedTicketArea) =>
+    target.areaKeywords.length === 0 || area.matchedAreaKeywords.length > 0;
+  const priceMatches = (area: ParsedTicketArea) =>
+    target.priceKeywords.length === 0 || area.matchedPriceKeywords.length > 0;
+  const availableRows = parsed.areas.filter((area) => area.isAvailable && rowAllowed(area));
+  const matchingRows = availableRows.filter((area) => areaMatches(area) && priceMatches(area));
+  const soldOutRows = parsed.areas.filter((area) => area.isSoldOut);
+  const bestAvailableArea = matchingRows[0] ?? availableRows[0] ?? null;
+  const includeHits = keywordHits(text, target.includeKeywords);
+  const matchedAreaNames = (matchingRows.length > 0 ? matchingRows : availableRows)
+    .slice(0, 10)
+    .map((area) => area.areaName);
+  const matchedPrices = (matchingRows.length > 0 ? matchingRows : availableRows)
+    .map((area) => area.price)
+    .filter((price): price is string => Boolean(price));
+
+  if (matchingRows.length > 0) {
+    return baseResult(target, "AVAILABLE", "解析到符合條件的可用票區，請開啟官方頁面人工確認。", startedAt, {
+      matchedKeywords: unique([...includeHits, ...parsed.pageSignals, bestAvailableArea?.statusText || ""]),
+      matchedAreas: unique(matchedAreaNames),
+      matchedPrices: unique(matchedPrices),
+      parsedAreas: parsed.areas,
+      eventTitle: parsed.eventTitle ?? null,
+      eventDate: parsed.eventDate ?? null,
+      venue: parsed.venue ?? null,
+      bestAvailableArea,
+      availableAreaCount: availableRows.length,
+      soldOutAreaCount: soldOutRows.length,
+      source: source === "auto_fetch" && parsed.areas.some((area) => area.source === "ocr") ? "ocr_assisted" : source
+    });
   }
 
+  if (availableRows.length > 0) {
+    return baseResult(target, "POSSIBLE_MATCH", "解析到可用票區，但未完全符合指定票區或價格條件。", startedAt, {
+      matchedKeywords: unique([...includeHits, ...parsed.pageSignals, bestAvailableArea?.statusText || ""]),
+      matchedAreas: unique(matchedAreaNames),
+      matchedPrices: unique(matchedPrices),
+      parsedAreas: parsed.areas,
+      eventTitle: parsed.eventTitle ?? null,
+      eventDate: parsed.eventDate ?? null,
+      venue: parsed.venue ?? null,
+      bestAvailableArea,
+      availableAreaCount: availableRows.length,
+      soldOutAreaCount: soldOutRows.length,
+      source: source === "auto_fetch" && parsed.areas.some((area) => area.source === "ocr") ? "ocr_assisted" : source
+    });
+  }
+
+  return baseResult(target, "UNAVAILABLE", "已解析票區，但目前沒有可用票區。", startedAt, {
+    matchedKeywords: unique([...includeHits, ...parsed.pageSignals]),
+    matchedAreas: [],
+    matchedPrices: [],
+    parsedAreas: parsed.areas,
+    eventTitle: parsed.eventTitle ?? null,
+    eventDate: parsed.eventDate ?? null,
+    venue: parsed.venue ?? null,
+    bestAvailableArea: null,
+    availableAreaCount: 0,
+    soldOutAreaCount: soldOutRows.length,
+    source
+  });
+}
+
+function fallbackKeywordDetection(
+  target: Target,
+  text: string,
+  startedAt: number,
+  parsed: ParsedAvailability,
+  source: CheckSource
+): CheckResult {
   const includeHits = keywordHits(text, target.includeKeywords);
   const excludeHits = keywordHits(text, target.excludeKeywords);
   const areaHits = keywordHits(text, target.areaKeywords);
@@ -147,52 +319,55 @@ export function detectFromText(target: Target, text: string, startedAt = Date.no
   const priceHits = keywordHits(text, target.priceKeywords);
 
   if (excludeHits.length > 0 || areaBlacklistHits.length > 0) {
-    return result(
-      target,
-      "UNAVAILABLE",
-      "命中排除條件或排除票區，暫不通知。",
-      startedAt,
-      [...includeHits, ...excludeHits],
-      [...areaHits, ...areaBlacklistHits],
-      priceHits
-    );
+    return baseResult(target, "UNAVAILABLE", "命中全局排除條件，暫不通知。", startedAt, {
+      matchedKeywords: [...includeHits, ...excludeHits],
+      matchedAreas: [...areaHits, ...areaBlacklistHits],
+      matchedPrices: priceHits,
+      eventTitle: parsed.eventTitle ?? null,
+      eventDate: parsed.eventDate ?? null,
+      venue: parsed.venue ?? null,
+      source
+    });
   }
 
   const areaMatches = target.areaKeywords.length === 0 || areaHits.length > 0;
   const priceMatches = target.priceKeywords.length === 0 || priceHits.length > 0;
 
   if (includeHits.length > 0 && areaMatches && priceMatches) {
-    return result(
+    return baseResult(
       target,
       areaHits.length > 0 || priceHits.length > 0 ? "AVAILABLE" : "POSSIBLE_MATCH",
-      "偵測到疑似可購買或餘票訊號，請開啟官方頁面人工確認。",
+      "未解析到逐列票區，但偵測到疑似可購買或餘票訊號，請人工確認。",
       startedAt,
-      includeHits,
-      areaHits,
-      priceHits
+      {
+        matchedKeywords: includeHits,
+        matchedAreas: areaHits,
+        matchedPrices: priceHits,
+        eventTitle: parsed.eventTitle ?? null,
+        eventDate: parsed.eventDate ?? null,
+        venue: parsed.venue ?? null,
+        source
+      }
     );
   }
 
-  return result(
-    target,
-    "UNAVAILABLE",
-    "尚未偵測到符合條件的釋票訊號。",
-    startedAt,
-    includeHits,
-    areaHits,
-    priceHits
-  );
+  return baseResult(target, "UNAVAILABLE", "尚未偵測到符合條件的釋票訊號。", startedAt, {
+    matchedKeywords: includeHits,
+    matchedAreas: areaHits,
+    matchedPrices: priceHits,
+    eventTitle: parsed.eventTitle ?? null,
+    eventDate: parsed.eventDate ?? null,
+    venue: parsed.venue ?? null,
+    source
+  });
 }
 
 export function errorResult(target: Target, error: unknown, startedAt: number): CheckResult {
-  return result(
-    target,
-    "ERROR",
-    "檢查時發生錯誤，已記錄供後續排查。",
-    startedAt,
-    [],
-    [],
-    [],
-    error instanceof Error ? error.message : String(error)
-  );
+  return baseResult(target, "ERROR", "檢查時發生錯誤，已記錄供後續排查。", startedAt, {
+    error: error instanceof Error ? error.message : String(error)
+  });
+}
+
+function unique(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }

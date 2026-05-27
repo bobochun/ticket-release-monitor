@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import type { CheckResult, Target } from "@/src/shared/types";
-import { detectFromText, detectSafetyStatus, errorResult } from "./detector";
+import { detectAccessBarrier, detectAvailability, detectFromText, errorResult } from "./detector";
 import { extractImageMetadataText, extractPublicImageText } from "./ocr";
 import { getEnvNumber } from "./settings";
 
@@ -14,6 +14,12 @@ function timeoutSignal(timeoutMs: number): AbortSignal {
   return controller.signal;
 }
 
+type PageSnapshot = {
+  html: string;
+  text: string;
+  ocrUsed: boolean;
+};
+
 function extractVisibleText(html: string): string {
   const $ = cheerio.load(html);
   $("script, style, noscript, svg").remove();
@@ -23,7 +29,8 @@ function extractVisibleText(html: string): string {
 }
 
 async function appendSafeOcrText(target: Target, html: string, text: string): Promise<string> {
-  if (detectSafetyStatus(text)) return text;
+  const barrier = detectAccessBarrier({ text, html, url: target.url });
+  if (barrier.barrierType !== "none") return text;
 
   const ocr = await extractPublicImageText({
     html,
@@ -41,7 +48,7 @@ async function appendSafeOcrText(target: Target, html: string, text: string): Pr
   ].join("\n");
 }
 
-async function fetchText(target: Target): Promise<string> {
+async function fetchSnapshot(target: Target): Promise<PageSnapshot> {
   const response = await fetch(target.url, {
     redirect: "follow",
     signal: timeoutSignal(target.timeoutMs),
@@ -55,10 +62,11 @@ async function fetchText(target: Target): Promise<string> {
   const html = await response.text();
   const visibleText = extractVisibleText(html);
   const text = `${response.status} ${response.statusText}\n${visibleText}`;
-  return appendSafeOcrText(target, html, text);
+  const withOcr = await appendSafeOcrText(target, html, text);
+  return { html, text: withOcr, ocrUsed: withOcr !== text };
 }
 
-async function playwrightText(target: Target): Promise<string> {
+async function playwrightSnapshot(target: Target): Promise<PageSnapshot> {
   const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ userAgent: USER_AGENT });
@@ -73,7 +81,8 @@ async function playwrightText(target: Target): Promise<string> {
       page.content().catch(() => "")
     ]);
     const text = [bodyText, extractImageMetadataText(html)].filter(Boolean).join("\n");
-    return html ? appendSafeOcrText(target, html, text) : text;
+    const withOcr = html ? await appendSafeOcrText(target, html, text) : text;
+    return { html, text: withOcr, ocrUsed: withOcr !== text };
   } finally {
     await page.close().catch(() => undefined);
     await browser.close().catch(() => undefined);
@@ -89,8 +98,14 @@ export async function checkTarget(target: Target): Promise<CheckResult> {
 
   try {
     const mode = process.env.CHECK_MODE || "fetch";
-    const text = mode === "playwright" ? await playwrightText(target) : await fetchText(target);
-    return detectFromText(target, text, startedAt);
+    const snapshot = mode === "playwright" ? await playwrightSnapshot(target) : await fetchSnapshot(target);
+    return detectAvailability({
+      target,
+      text: snapshot.text,
+      html: snapshot.html,
+      startedAt,
+      source: snapshot.ocrUsed ? "ocr_assisted" : "auto_fetch"
+    });
   } catch (error) {
     return errorResult(target, error, startedAt);
   }

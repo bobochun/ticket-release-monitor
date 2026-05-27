@@ -30,6 +30,8 @@ export async function initDb(): Promise<void> {
   for (const statement of statements) {
     await db.execute(statement);
   }
+
+  await migrateCheckRunsColumns(db);
 }
 
 export async function ensureDb(): Promise<void> {
@@ -53,6 +55,48 @@ export function jsonParseArray(value: unknown): string[] {
   }
 }
 
+export function jsonParseValue<T>(value: unknown, fallback: T): T {
+  if (!value || typeof value !== "string") return fallback;
+
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 export function boolFromDb(value: unknown): boolean {
   return value === true || value === 1 || value === "1" || value === "true";
+}
+
+async function migrateCheckRunsColumns(db: DatabaseClient): Promise<void> {
+  const columns = [
+    ["parsed_areas_json", "TEXT", "'[]'"],
+    ["event_title", "TEXT", null],
+    ["event_date", "TEXT", null],
+    ["venue", "TEXT", null],
+    ["best_available_area_json", "TEXT", null],
+    ["available_area_count", "INTEGER", "0"],
+    ["sold_out_area_count", "INTEGER", "0"],
+    ["source", "TEXT", "'auto_fetch'"]
+  ] as const;
+
+  if (db.kind === "postgres") {
+    for (const [name, type, defaultValue] of columns) {
+      await db.execute(
+        `ALTER TABLE check_runs ADD COLUMN IF NOT EXISTS ${name} ${type}${defaultValue ? ` DEFAULT ${defaultValue}` : ""}`
+      );
+    }
+    return;
+  }
+
+  const existing = await db.query<{ name: string }>("PRAGMA table_info(check_runs)");
+  const existingNames = new Set(existing.map((column) => column.name));
+  for (const [name, type, defaultValue] of columns) {
+    if (!existingNames.has(name)) {
+      await db.execute(
+        `ALTER TABLE check_runs ADD COLUMN ${name} ${type}${defaultValue ? ` DEFAULT ${defaultValue}` : ""}`
+      );
+    }
+  }
 }

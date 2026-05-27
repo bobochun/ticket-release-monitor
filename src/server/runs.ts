@@ -1,5 +1,5 @@
-import type { CheckResult, CheckRun } from "@/src/shared/types";
-import { boolFromDb, ensureDb, getDb, jsonParseArray, jsonStringify } from "./db";
+import type { CheckResult, CheckRun, ParsedTicketArea } from "@/src/shared/types";
+import { boolFromDb, ensureDb, getDb, jsonParseArray, jsonParseValue, jsonStringify } from "./db";
 
 type CheckRunRow = {
   id: number;
@@ -11,6 +11,14 @@ type CheckRunRow = {
   matched_keywords_json: string;
   matched_areas_json: string;
   matched_prices_json: string;
+  parsed_areas_json: string | null;
+  event_title: string | null;
+  event_date: string | null;
+  venue: string | null;
+  best_available_area_json: string | null;
+  available_area_count: number | null;
+  sold_out_area_count: number | null;
+  source: CheckRun["source"] | null;
   bot_check_detected: boolean | number;
   checked_at: string;
   duration_ms: number;
@@ -28,6 +36,14 @@ function mapRun(row: CheckRunRow): CheckRun {
     matchedKeywords: jsonParseArray(row.matched_keywords_json),
     matchedAreas: jsonParseArray(row.matched_areas_json),
     matchedPrices: jsonParseArray(row.matched_prices_json),
+    parsedAreas: jsonParseValue<ParsedTicketArea[]>(row.parsed_areas_json, []),
+    eventTitle: row.event_title,
+    eventDate: row.event_date,
+    venue: row.venue,
+    bestAvailableArea: jsonParseValue<ParsedTicketArea | null>(row.best_available_area_json, null),
+    availableAreaCount: Number(row.available_area_count ?? 0),
+    soldOutAreaCount: Number(row.sold_out_area_count ?? 0),
+    source: row.source ?? "auto_fetch",
     botCheckDetected: boolFromDb(row.bot_check_detected),
     checkedAt: row.checked_at,
     durationMs: row.duration_ms,
@@ -42,9 +58,12 @@ export async function saveCheckRun(result: CheckResult): Promise<CheckRun> {
     `INSERT INTO check_runs (
       target_id, target_name, url, status, message,
       matched_keywords_json, matched_areas_json, matched_prices_json,
+      parsed_areas_json, event_title, event_date, venue, best_available_area_json,
+      available_area_count, sold_out_area_count, source,
       bot_check_detected, checked_at, duration_ms, error
     ) VALUES (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+      $13, $14, $15, $16, $17, $18, $19, $20
     ) RETURNING id`,
     [
       result.targetId ?? null,
@@ -55,6 +74,14 @@ export async function saveCheckRun(result: CheckResult): Promise<CheckRun> {
       jsonStringify(result.matchedKeywords),
       jsonStringify(result.matchedAreas),
       jsonStringify(result.matchedPrices),
+      jsonStringify(result.parsedAreas),
+      result.eventTitle ?? null,
+      result.eventDate ?? null,
+      result.venue ?? null,
+      result.bestAvailableArea ? JSON.stringify(result.bestAvailableArea) : null,
+      result.availableAreaCount,
+      result.soldOutAreaCount,
+      result.source,
       db.kind === "postgres" ? result.botCheckDetected : result.botCheckDetected ? 1 : 0,
       result.checkedAt,
       result.durationMs,

@@ -40,7 +40,7 @@ export function getConfiguredStatus() {
     ocrEnabled: (process.env.OCR_ENABLED || "false") === "true",
     ocrMode: process.env.OCR_MODE || "tesseract",
     ocrLang: process.env.OCR_LANG || "eng+chi_tra",
-    ocrMaxImagesPerCheck: getEnvNumber("OCR_MAX_IMAGES_PER_CHECK", 3),
+    ocrMaxImagesPerCheck: getEnvNumber("OCR_MAX_IMAGES_PER_CHECK", 1),
     ocrMaxImageBytes: getEnvNumber("OCR_MAX_IMAGE_BYTES", 800000),
     ocrTimeoutMs: getEnvNumber("OCR_TIMEOUT_MS", 12000),
     ocrAllowCrossOrigin: (process.env.OCR_ALLOW_CROSS_ORIGIN || "true") === "true",

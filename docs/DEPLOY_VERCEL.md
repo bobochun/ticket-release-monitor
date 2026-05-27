@@ -76,6 +76,7 @@ OCR_MIN_IMAGE_AREA=5000
 
 `CRON_SECRET` 請用長一點的隨機字串。不要把 secret 放在公開文件或前端畫面。
 Vercel Hobby 上 OCR 建議先保持 `OCR_ENABLED=false`。若要啟用，請把 `MAX_TARGETS_PER_CRON=1`、`OCR_MAX_IMAGES_PER_CHECK=1`，並觀察 function duration。
+如果平台 server-side fetch 看不到完整票區，部署後可使用 `/manual-parse` 手動貼上公開票區內容解析並寫入 History。
 
 ## 5. Deploy / Redeploy
 

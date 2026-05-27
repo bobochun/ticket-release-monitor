@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 import { getEnvNumber } from "./settings";
-import { keywordHits, normalizeText } from "./detector";
+import { keywordHits, normalizeText } from "./text";
 
 const OCR_UNSAFE_IMAGE_TEXT = [
   "captcha",
@@ -99,7 +99,7 @@ export async function extractPublicImageText(options: {
   }
 
   const candidates = collectImageCandidates(options.html, options.pageUrl);
-  const maxImages = getEnvNumber("OCR_MAX_IMAGES_PER_CHECK", 3);
+  const maxImages = getEnvNumber("OCR_MAX_IMAGES_PER_CHECK", 1);
   const maxBytes = getEnvNumber("OCR_MAX_IMAGE_BYTES", 800000);
   const timeoutMs = Math.min(
     getEnvNumber("OCR_TIMEOUT_MS", 12000),

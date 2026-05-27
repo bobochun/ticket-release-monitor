@@ -51,6 +51,14 @@ function schema(
       matched_keywords_json TEXT NOT NULL DEFAULT '[]',
       matched_areas_json TEXT NOT NULL DEFAULT '[]',
       matched_prices_json TEXT NOT NULL DEFAULT '[]',
+      parsed_areas_json TEXT NOT NULL DEFAULT '[]',
+      event_title TEXT,
+      event_date TEXT,
+      venue TEXT,
+      best_available_area_json TEXT,
+      available_area_count INTEGER NOT NULL DEFAULT 0,
+      sold_out_area_count INTEGER NOT NULL DEFAULT 0,
+      source TEXT NOT NULL DEFAULT 'auto_fetch',
       bot_check_detected ${booleanType} NOT NULL DEFAULT ${falseDefault},
       checked_at TEXT NOT NULL DEFAULT ${nowDefault},
       duration_ms INTEGER NOT NULL DEFAULT 0,
@@ -103,6 +111,7 @@ function schema(
     )`,
     "CREATE INDEX IF NOT EXISTS idx_targets_due ON targets (enabled, is_template, next_check_at)",
     "CREATE INDEX IF NOT EXISTS idx_runs_checked_at ON check_runs (checked_at)",
+    "CREATE INDEX IF NOT EXISTS idx_runs_source ON check_runs (source)",
     "CREATE INDEX IF NOT EXISTS idx_candidates_rule ON discovered_candidates (rule_id)"
   ];
 }

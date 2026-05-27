@@ -1,19 +1,24 @@
-export type PlatformCategory = "通用" | "職棒" | "演唱會" | "售票平台";
+export type PlatformCategory = "generic" | "cpbl" | "concert" | "sports" | "hk";
 
 export type PlatformDefault = {
   id: string;
   labelZh: string;
-  labelEn: string;
+  labelEn?: string;
   category: PlatformCategory;
+  parserId: string;
   hosts: string[];
+  urlHints: string[];
   defaultUrlPlaceholder: string;
   includeKeywords: string[];
   excludeKeywords: string[];
   areaKeywords: string[];
   areaBlacklist: string[];
   priceKeywords: string[];
+  rowAvailableKeywords: string[];
+  rowSoldOutKeywords: string[];
+  tableHeaderKeywords: string[];
   notes: string;
-  warning: string;
+  warning?: string;
 };
 
 export type QuickTemplate = {
@@ -24,7 +29,22 @@ export type QuickTemplate = {
   description: string;
 };
 
+export const CPBL_ROW_AVAILABLE = [
+  "熱賣中",
+  "剩餘",
+  "空位",
+  "尚有座位",
+  "可售",
+  "可購買",
+  "餘票"
+];
+export const CPBL_ROW_SOLD_OUT = ["售完", "已售完", "銷售一空"];
+export const CPBL_TABLE_HEADERS = ["票區", "票價", "空位", "剩餘", "狀態"];
+
 export const CPBL_INCLUDE = [
+  "票區",
+  "票價",
+  "空位",
   "立即購票",
   "我要購票",
   "可購買",
@@ -33,26 +53,62 @@ export const CPBL_INCLUDE = [
   "剩餘座位",
   "餘票",
   "尚有座位",
+  "內野",
+  "外野",
   "熱區",
-  "空位",
   "加入購物車"
 ];
 export const CPBL_EXCLUDE = [
-  "已售完",
-  "售完",
-  "暫無票券",
   "尚未開賣",
   "截止販售",
-  "銷售一空",
   "已截止",
-  "剩餘 0",
-  "剩餘0",
-  "0 張",
-  "0張",
-  "無剩餘"
+  "活動已結束",
+  "系統維護"
 ];
-export const CPBL_AREAS = ["熱區", "A1", "A2", "B1", "B2"];
-export const DEFAULT_AREA_BLACKLIST = ["身障", "視線不良"];
+export const CPBL_AREAS = ["內野", "外野", "下層", "上層", "A區", "B區", "C區", "D區", "熱區"];
+export const DEFAULT_AREA_BLACKLIST = ["身障", "視線不良", "應援視線不良"];
+
+export const EVENT_ROW_AVAILABLE = [
+  "立即購票",
+  "立即訂購",
+  "立即報名",
+  "Buy",
+  "Buy Tickets",
+  "Register",
+  "Available",
+  "可購買",
+  "可訂購",
+  "可報名",
+  "剩餘",
+  "餘票",
+  "尚有票券",
+  "空位",
+  "可售"
+];
+export const EVENT_ROW_SOLD_OUT = [
+  "已售完",
+  "售完",
+  "已額滿",
+  "銷售一空",
+  "暫無票券",
+  "Sold Out",
+  "Unavailable",
+  "Not Available"
+];
+export const EVENT_TABLE_HEADERS = [
+  "票區",
+  "區域",
+  "座位區",
+  "票價",
+  "價格",
+  "空位",
+  "剩餘",
+  "狀態",
+  "Area",
+  "Price",
+  "Remaining",
+  "Status"
+];
 
 export const EVENT_INCLUDE = [
   "立即購票",
@@ -77,61 +133,71 @@ export const EVENT_INCLUDE = [
 ];
 
 export const EVENT_EXCLUDE = [
-  "已售完",
-  "售完",
-  "Sold Out",
-  "暫無票券",
   "尚未開賣",
   "尚未啟售",
   "活動已結束",
   "截止販售",
   "已截止",
-  "銷售一空",
-  "Not Available",
-  "Unavailable",
-  "No tickets available",
-  "剩餘 0",
-  "剩餘0",
-  "0 張",
-  "0張",
-  "無剩餘"
+  "系統維護"
 ];
 
-const generic: Omit<PlatformDefault, "id" | "labelZh" | "labelEn" | "category" | "hosts" | "defaultUrlPlaceholder"> = {
+const generic: Omit<
+  PlatformDefault,
+  "id" | "labelZh" | "labelEn" | "category" | "parserId" | "hosts" | "urlHints" | "defaultUrlPlaceholder"
+> = {
   includeKeywords: EVENT_INCLUDE,
   excludeKeywords: EVENT_EXCLUDE,
   areaKeywords: [],
   areaBlacklist: DEFAULT_AREA_BLACKLIST,
   priceKeywords: [],
+  rowAvailableKeywords: EVENT_ROW_AVAILABLE,
+  rowSoldOutKeywords: EVENT_ROW_SOLD_OUT,
+  tableHeaderKeywords: EVENT_TABLE_HEADERS,
   notes: "請貼上實際官方售票頁網址。系統只通知，不自動登入、不選位、不購買。",
   warning: "平台預設只會帶入關鍵字，真正監控仍需使用實際活動頁 URL。"
 };
 
-const cpbl: Omit<PlatformDefault, "id" | "labelZh" | "labelEn" | "category" | "hosts" | "defaultUrlPlaceholder"> = {
+const cpbl: Omit<
+  PlatformDefault,
+  "id" | "labelZh" | "labelEn" | "category" | "parserId" | "hosts" | "urlHints" | "defaultUrlPlaceholder"
+> = {
   includeKeywords: CPBL_INCLUDE,
   excludeKeywords: CPBL_EXCLUDE,
   areaKeywords: CPBL_AREAS,
   areaBlacklist: DEFAULT_AREA_BLACKLIST,
   priceKeywords: [],
+  rowAvailableKeywords: CPBL_ROW_AVAILABLE,
+  rowSoldOutKeywords: CPBL_ROW_SOLD_OUT,
+  tableHeaderKeywords: CPBL_TABLE_HEADERS,
   notes: "CPBL 熱區監控模板。請換成實際場次 URL 後再啟用；只通知，不自動購買。",
   warning: "不要啟用 placeholder URL。遇到驗證、排隊或登入需求時，只會通知人工處理。"
 };
+
+function withOverrides(
+  base: typeof generic,
+  overrides: Partial<typeof generic>
+): typeof generic {
+  return { ...base, ...overrides };
+}
 
 function eventPlatform(
   id: string,
   labelZh: string,
   labelEn: string,
   defaultUrlPlaceholder: string,
-  hosts: string[] = []
+  hosts: string[] = [],
+  overrides: Partial<typeof generic> = {}
 ): PlatformDefault {
   return {
     id,
     labelZh,
     labelEn,
-    category: "演唱會",
+    category: hosts.some((host) => host.includes(".hk") || host.includes("hkticketing") || host.includes("cityline")) ? "hk" : "concert",
+    parserId: id,
     hosts,
+    urlHints: hosts,
     defaultUrlPlaceholder,
-    ...generic
+    ...withOverrides(generic, overrides)
   };
 }
 
@@ -140,16 +206,19 @@ function cpblPlatform(
   labelZh: string,
   labelEn: string,
   defaultUrlPlaceholder: string,
-  hosts: string[] = []
+  hosts: string[] = [],
+  overrides: Partial<typeof cpbl> = {}
 ): PlatformDefault {
   return {
     id,
     labelZh,
     labelEn,
-    category: "職棒",
+    category: "cpbl",
+    parserId: id,
     hosts,
+    urlHints: hosts,
     defaultUrlPlaceholder,
-    ...cpbl
+    ...withOverrides(cpbl, overrides)
   };
 }
 
@@ -158,23 +227,55 @@ export const PLATFORM_DEFAULTS: PlatformDefault[] = [
     id: "generic",
     labelZh: "通用公開頁面",
     labelEn: "Generic",
-    category: "通用",
+    category: "generic",
+    parserId: "generic",
     hosts: [],
+    urlHints: [],
     defaultUrlPlaceholder: "https://example.com/YOUR_EVENT_URL",
     ...generic
   },
-  eventPlatform("tixcraft", "TixCraft / 拓元", "TixCraft", "https://tixcraft.com/activity/detail/YOUR_EVENT_ID", ["tixcraft.com"]),
+  eventPlatform("tixcraft", "TixCraft / 拓元", "TixCraft", "https://tixcraft.com/activity/detail/YOUR_EVENT_ID", ["tixcraft.com"], {
+    rowAvailableKeywords: ["立即購票", "購票", "可購買", "剩餘", "Available"],
+    rowSoldOutKeywords: ["已售完", "售完", "暫無票券"],
+    excludeKeywords: ["尚未開賣", "活動已結束", "截止販售", "系統維護"]
+  }),
   eventPlatform("teamear", "Teamear", "Teamear", "https://teamear.example.com/YOUR_EVENT_URL", ["teamear.example.com"]),
   eventPlatform("ticketmaster", "Ticketmaster", "Ticketmaster", "https://www.ticketmaster.com/YOUR_EVENT_URL", ["ticketmaster.com"]),
   eventPlatform("indievox", "Indievox", "Indievox", "https://www.indievox.com/activity/detail/YOUR_EVENT_ID", ["indievox.com"]),
-  eventPlatform("kktix", "KKTIX", "KKTIX", "https://kktix.com/events/YOUR_EVENT_ID", ["kktix.com"]),
-  eventPlatform("ticketplus", "TicketPlus / 遠大售票", "TicketPlus", "https://ticketplus.com.tw/activity/YOUR_EVENT_ID", ["ticketplus.com.tw"]),
-  eventPlatform("ibon", "iBon 售票", "iBon", "https://orders.ibon.com.tw/application/UTK02/YOUR_EVENT_URL", ["orders.ibon.com.tw"]),
-  eventPlatform("era_ticket", "年代售票", "ERA Ticket", "https://ticket.com.tw/application/UTK01/YOUR_EVENT_URL", ["ticket.com.tw"]),
-  eventPlatform("kham", "寬宏 KHAM", "KHAM", "https://kham.com.tw/application/UTK02/YOUR_EVENT_URL", ["kham.com.tw"]),
+  eventPlatform("kktix", "KKTIX", "KKTIX", "https://kktix.com/events/YOUR_EVENT_ID", ["kktix.com"], {
+    rowAvailableKeywords: ["立即報名", "報名", "Register", "Available", "剩餘", "可報名"],
+    rowSoldOutKeywords: ["已額滿", "Sold Out", "售完"],
+    excludeKeywords: ["尚未開賣", "活動已結束", "截止販售", "系統維護"]
+  }),
+  eventPlatform("ticketplus", "TicketPlus / 遠大售票", "TicketPlus", "https://ticketplus.com.tw/activity/YOUR_EVENT_ID", ["ticketplus.com.tw"], {
+    rowAvailableKeywords: ["立即購票", "可購買", "剩餘", "Buy", "Available"],
+    rowSoldOutKeywords: ["已售完", "售完", "Sold Out"],
+    excludeKeywords: ["尚未開賣", "活動已結束", "截止販售", "系統維護"]
+  }),
+  eventPlatform("ibon", "iBon 售票", "iBon", "https://orders.ibon.com.tw/application/UTK02/YOUR_EVENT_URL", ["orders.ibon.com.tw"], {
+    includeKeywords: ["活動名稱", "演出日期", "場館", "票區", "票價", "空位", "剩餘", "立即訂購", "可訂購", "可購買", "選擇票區"],
+    rowAvailableKeywords: ["立即訂購", "立即購票", "可訂購", "可購買", "選擇票區", "剩餘", "空位", "尚有座位", "可售"],
+    rowSoldOutKeywords: ["已售完", "售完", "暫無票券"],
+    excludeKeywords: ["尚未開賣", "截止販售", "已截止", "活動已結束", "系統維護"]
+  }),
+  eventPlatform("era_ticket", "年代售票", "ERA Ticket", "https://ticket.com.tw/application/UTK01/YOUR_EVENT_URL", ["ticket.com.tw"], {
+    rowAvailableKeywords: ["立即購票", "可購買", "剩餘", "空位"],
+    rowSoldOutKeywords: ["已售完", "售完", "暫無票券"],
+    excludeKeywords: ["尚未開賣", "截止販售", "已截止", "活動已結束", "系統維護"]
+  }),
+  eventPlatform("kham", "寬宏 KHAM", "KHAM", "https://kham.com.tw/application/UTK02/YOUR_EVENT_URL", ["kham.com.tw"], {
+    rowAvailableKeywords: ["立即購票", "可購買", "剩餘", "空位"],
+    rowSoldOutKeywords: ["已售完", "售完", "暫無票券"],
+    excludeKeywords: ["尚未開賣", "截止販售", "已截止", "活動已結束", "系統維護"]
+  }),
   eventPlatform("cityline", "Cityline 買飛", "Cityline", "https://www.cityline.com/Events.html", ["cityline.com"]),
   eventPlatform("hkticketing", "HKTicketing 快達票", "HKTicketing", "https://www.hkticketing.com/events/YOUR_EVENT_ID", ["hkticketing.com"]),
-  eventPlatform("famiticket", "FamiTicket / FamiLife", "FamiTicket", "https://www.famiticket.com.tw/YOUR_EVENT_URL", ["famiticket.com.tw", "fami.life"]),
+  eventPlatform("famiticket", "FamiTicket / FamiLife", "FamiTicket", "https://www.famiticket.com.tw/YOUR_EVENT_URL", ["famiticket.com.tw", "fami.life"], {
+    includeKeywords: ["票區", "票價", "空位", "熱區", "剩餘", "立即購票", "我要購票", "可購買"],
+    rowAvailableKeywords: ["立即購票", "我要購票", "可購買", "熱區", "剩餘", "空位", "尚有座位", "可售"],
+    rowSoldOutKeywords: ["已售完", "售完", "暫無票券"],
+    excludeKeywords: ["尚未開賣", "活動已結束", "截止販售", "系統維護"]
+  }),
   eventPlatform("fansi_go", "FANSI GO", "FANSI GO", "https://fansi.example.com/YOUR_EVENT_URL", ["fansi.example.com"]),
   eventPlatform("funone", "FunOne", "FunOne", "https://funone.example.com/YOUR_EVENT_URL", ["funone.example.com"]),
   cpblPlatform("cpbl_fubon_guardians", "CPBL 富邦悍將", "Fubon Guardians", "https://guardians.fami.life/YOUR_EVENT_URL", ["guardians.fami.life"]),

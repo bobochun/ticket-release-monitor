@@ -2,6 +2,7 @@ import { TargetForm } from "@/components/TargetForm";
 import { TargetList } from "@/components/TargetList";
 import { PLATFORM_DEFAULTS } from "@/src/shared/platformDefaults";
 import { listTargets } from "@/src/server/targets";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -18,6 +19,9 @@ export default async function TargetsPage() {
           平台選單只會決定預設模板與分類。若要真正監控釋票，仍需貼上官方實際售票頁網址。
           不要啟用 YOUR_EVENT_URL、YOUR_EVENT_ID 或 example.com 這類 placeholder。
         </p>
+        <Link className="btn btn-secondary mt-3 inline-flex" href="/manual-parse">
+          前往 Manual Parse 手動票區解析
+        </Link>
       </section>
 
       <section className="surface mb-5 p-4">

@@ -8,6 +8,31 @@ export type CheckStatus =
   | "ERROR"
   | "DISABLED";
 
+export type ParsedTicketArea = {
+  areaName: string;
+  price?: string;
+  statusText: string;
+  remainingText?: string;
+  remainingCount?: number;
+  isAvailable: boolean;
+  isSoldOut: boolean;
+  matchedAreaKeywords: string[];
+  matchedPriceKeywords: string[];
+  source: "table" | "list" | "text" | "svg" | "image-map" | "ocr";
+};
+
+export type ParsedAvailability = {
+  eventTitle?: string;
+  eventDate?: string;
+  venue?: string;
+  areas: ParsedTicketArea[];
+  pageSignals: string[];
+  hasTicketContent: boolean;
+  parserId: string;
+};
+
+export type CheckSource = "auto_fetch" | "manual_parse" | "ocr_assisted";
+
 export type Target = {
   id: number;
   name: string;
@@ -39,6 +64,14 @@ export type CheckRun = {
   matchedKeywords: string[];
   matchedAreas: string[];
   matchedPrices: string[];
+  parsedAreas: ParsedTicketArea[];
+  eventTitle: string | null;
+  eventDate: string | null;
+  venue: string | null;
+  bestAvailableArea: ParsedTicketArea | null;
+  availableAreaCount: number;
+  soldOutAreaCount: number;
+  source: CheckSource;
   botCheckDetected: boolean;
   checkedAt: string;
   durationMs: number;

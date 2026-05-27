@@ -59,6 +59,24 @@ function matchedText(result: CheckResult): string {
   ].join("、");
 }
 
+function areaLine(area: NonNullable<CheckResult["bestAvailableArea"]>): string {
+  return [
+    area.areaName,
+    area.price,
+    area.remainingCount !== undefined ? `剩餘 ${area.remainingCount}` : area.statusText
+  ]
+    .filter(Boolean)
+    .join(" / ");
+}
+
+function areaList(areas: CheckResult["parsedAreas"], available: boolean): string {
+  const filtered = areas
+    .filter((area) => (available ? area.isAvailable : area.isSoldOut))
+    .slice(0, 8)
+    .map((area) => `- ${areaLine(area)}`);
+  return filtered.length > 0 ? filtered.join("\n") : "- 無";
+}
+
 function formatTaipeiTime(value: string): string {
   return new Intl.DateTimeFormat("zh-TW", {
     timeZone: "Asia/Taipei",
@@ -77,20 +95,41 @@ export function alertBody(result: CheckResult, platform = "generic"): string {
     "",
     `狀態：${statusLabel(result.status)}`,
     `目標：${result.targetName}`,
+    result.eventTitle ? `活動：${result.eventTitle}` : null,
+    result.eventDate ? `時間：${result.eventDate}` : null,
+    result.venue ? `場館：${result.venue}` : null,
     `平台：${platformLabel(platform)}`,
+    `來源：${result.source}`,
     `命中：${matchedText(result) || "無"}`,
+    result.bestAvailableArea ? `最佳命中：${areaLine(result.bestAvailableArea)}` : null,
+    `可用票區：${result.availableAreaCount}`,
+    `售完票區：${result.soldOutAreaCount}`,
+    result.parsedAreas.length > 0 ? `\n可用票區列表：\n${areaList(result.parsedAreas, true)}` : null,
+    result.parsedAreas.length > 0 ? `\n售完票區列表：\n${areaList(result.parsedAreas, false)}` : null,
     `檢查時間：${formatTaipeiTime(result.checkedAt)}`,
     `官方頁面：${result.url}`,
     "",
     "提醒：",
     "本工具只提供通知。請自行開啟官方售票頁手動購票；系統沒有登入、選位、結帳、付款，也沒有繞過驗證或排隊。"
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 function notificationFingerprint(result: CheckResult): string {
   return JSON.stringify({
     targetId: result.targetId ?? result.targetName,
     status: result.status,
+    bestAvailableArea: result.bestAvailableArea
+      ? {
+          areaName: result.bestAvailableArea.areaName,
+          remainingCount: result.bestAvailableArea.remainingCount,
+          statusText: result.bestAvailableArea.statusText
+        }
+      : null,
+    availableAreas: result.parsedAreas
+      .filter((area) => area.isAvailable)
+      .map((area) => [area.areaName, area.remainingCount ?? "", area.statusText].join(":"))
+      .sort(),
+    source: result.source,
     keywords: [...result.matchedKeywords].sort(),
     areas: [...result.matchedAreas].sort(),
     prices: [...result.matchedPrices].sort()
@@ -216,9 +255,21 @@ async function sendDiscord(result: CheckResult, platform: string): Promise<boole
           color: result.status === "ERROR" ? 0xdc2626 : result.status === "AVAILABLE" ? 0x16a34a : 0x2563eb,
           fields: [
             { name: "平台", value: platformLabel(platform), inline: true },
+            { name: "活動", value: result.eventTitle || "未擷取", inline: false },
+            { name: "時間", value: result.eventDate || "未擷取", inline: true },
+            { name: "場館", value: result.venue || "未擷取", inline: true },
+            { name: "來源", value: result.source, inline: true },
+            { name: "最佳命中", value: result.bestAvailableArea ? areaLine(result.bestAvailableArea) : "無", inline: false },
+            { name: "可用 / 售完票區", value: `${result.availableAreaCount} / ${result.soldOutAreaCount}`, inline: true },
             { name: "命中關鍵字", value: result.matchedKeywords.join("、") || "無", inline: false },
             { name: "命中票區", value: result.matchedAreas.join("、") || "無", inline: true },
             { name: "命中價格", value: result.matchedPrices.join("、") || "無", inline: true },
+            ...(result.parsedAreas.length > 0
+              ? [
+                  { name: "可用票區", value: areaList(result.parsedAreas, true).slice(0, 1000), inline: false },
+                  { name: "售完票區", value: areaList(result.parsedAreas, false).slice(0, 1000), inline: false }
+                ]
+              : []),
             { name: "檢查時間", value: formatTaipeiTime(result.checkedAt), inline: false }
           ],
           footer: {
@@ -290,6 +341,14 @@ export async function sendTestNotification(
     matchedKeywords: ["測試", "立即購票"],
     matchedAreas: ["A1"],
     matchedPrices: [],
+    parsedAreas: [],
+    eventTitle: "測試活動",
+    eventDate: null,
+    venue: null,
+    bestAvailableArea: null,
+    availableAreaCount: 0,
+    soldOutAreaCount: 0,
+    source: "auto_fetch",
     botCheckDetected: false,
     checkedAt: new Date().toISOString(),
     durationMs: 0,
