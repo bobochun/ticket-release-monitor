@@ -19,9 +19,9 @@ export async function POST(_request: Request, context: RouteContext) {
   }
 
   const result = await checkTarget(target);
+  const notifications = await notifyCheckResult(result, target.platform);
   const run = await saveCheckRun(result);
   await markTargetChecked(target.id, target.checkIntervalSeconds);
-  await notifyCheckResult(result, target.platform);
 
-  return NextResponse.json({ ok: true, result, run });
+  return NextResponse.json({ ok: true, result, run, notifications });
 }

@@ -14,9 +14,14 @@ const targetSchema = z.object({
   timeoutMs: z.number().int().positive().default(30000),
   includeKeywords: z.array(z.string()).default([]),
   excludeKeywords: z.array(z.string()).default([]),
+  eventKeywords: z.array(z.string()).default([]),
+  dateKeywords: z.array(z.string()).default([]),
+  venueKeywords: z.array(z.string()).default([]),
   areaKeywords: z.array(z.string()).default([]),
   areaBlacklist: z.array(z.string()).default([]),
   priceKeywords: z.array(z.string()).default([]),
+  matchMode: z.enum(["strict", "normal", "loose"]).default("strict"),
+  notifyOn: z.enum(["available_only", "available_and_possible", "all"]).default("available_only"),
   notes: z.string().nullable().optional(),
   isTemplate: z.boolean().default(false)
 });
@@ -31,9 +36,14 @@ type TargetRow = {
   timeout_ms: number;
   include_keywords_json: string;
   exclude_keywords_json: string;
+  event_keywords_json: string | null;
+  date_keywords_json: string | null;
+  venue_keywords_json: string | null;
   area_keywords_json: string;
   area_blacklist_json: string;
   price_keywords_json: string;
+  match_mode: Target["matchMode"] | null;
+  notify_on: Target["notifyOn"] | null;
   notes: string | null;
   is_template: boolean | number;
   last_checked_at: string | null;
@@ -53,9 +63,14 @@ function mapTarget(row: TargetRow): Target {
     timeoutMs: row.timeout_ms,
     includeKeywords: jsonParseArray(row.include_keywords_json),
     excludeKeywords: jsonParseArray(row.exclude_keywords_json),
+    eventKeywords: jsonParseArray(row.event_keywords_json),
+    dateKeywords: jsonParseArray(row.date_keywords_json),
+    venueKeywords: jsonParseArray(row.venue_keywords_json),
     areaKeywords: jsonParseArray(row.area_keywords_json),
     areaBlacklist: jsonParseArray(row.area_blacklist_json),
     priceKeywords: jsonParseArray(row.price_keywords_json),
+    matchMode: row.match_mode ?? "strict",
+    notifyOn: row.notify_on ?? "available_only",
     notes: row.notes,
     isTemplate: boolFromDb(row.is_template),
     lastCheckedAt: row.last_checked_at,
@@ -67,6 +82,14 @@ function mapTarget(row: TargetRow): Target {
 
 export function parseTargetInput(input: unknown): TargetInput {
   const parsed = targetSchema.parse(input);
+  if (parsed.enabled && (parsed.isTemplate || isTemplateName(parsed.name))) {
+    throw new AppError(
+      "TEMPLATE_TARGET",
+      "模板不能直接啟用。請先複製成正式監控目標並移除「模板」字樣。",
+      400
+    );
+  }
+
   if (parsed.enabled && isPlaceholderUrl(parsed.url)) {
     throw new AppError(
       "PLACEHOLDER_URL",
@@ -98,10 +121,12 @@ export async function listDueTargets(limit: number): Promise<Target[]> {
   const rows = await db.query<TargetRow>(
     `SELECT * FROM targets
      WHERE enabled = $1
-       AND (next_check_at IS NULL OR next_check_at <= $2)
+       AND is_template = $2
+       AND name NOT LIKE '%模板%'
+       AND (next_check_at IS NULL OR next_check_at <= $3)
      ORDER BY COALESCE(next_check_at, created_at) ASC, id ASC
-     LIMIT $3`,
-    db.kind === "postgres" ? [true, now, limit] : [1, now, limit]
+     LIMIT $4`,
+    db.kind === "postgres" ? [true, false, now, limit] : [1, 0, now, limit]
   );
   return rows.map(mapTarget);
 }
@@ -121,10 +146,13 @@ export async function createTarget(input: TargetInput): Promise<Target> {
   const row = await db.queryOne<{ id: number }>(
     `INSERT INTO targets (
       name, platform, url, enabled, check_interval_seconds, timeout_ms,
-      include_keywords_json, exclude_keywords_json, area_keywords_json,
-      area_blacklist_json, price_keywords_json, notes, is_template, next_check_at
+      include_keywords_json, exclude_keywords_json, event_keywords_json,
+      date_keywords_json, venue_keywords_json, area_keywords_json,
+      area_blacklist_json, price_keywords_json, match_mode, notify_on,
+      notes, is_template, next_check_at
     ) VALUES (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14,
+      $15, $16, $17, $18, $19
     ) RETURNING id`,
     [
       parsed.name,
@@ -135,9 +163,14 @@ export async function createTarget(input: TargetInput): Promise<Target> {
       parsed.timeoutMs ?? 30000,
       jsonStringify(parsed.includeKeywords ?? []),
       jsonStringify(parsed.excludeKeywords ?? []),
+      jsonStringify(parsed.eventKeywords ?? []),
+      jsonStringify(parsed.dateKeywords ?? []),
+      jsonStringify(parsed.venueKeywords ?? []),
       jsonStringify(parsed.areaKeywords ?? []),
       jsonStringify(parsed.areaBlacklist ?? []),
       jsonStringify(parsed.priceKeywords ?? []),
+      parsed.matchMode ?? "strict",
+      parsed.notifyOn ?? "available_only",
       parsed.notes ?? null,
       db.kind === "postgres" ? Boolean(parsed.isTemplate) : parsed.isTemplate ? 1 : 0,
       now
@@ -165,14 +198,27 @@ export async function updateTarget(id: number, input: Partial<TargetInput>): Pro
     timeoutMs: input.timeoutMs ?? current.timeoutMs,
     includeKeywords: input.includeKeywords ?? current.includeKeywords,
     excludeKeywords: input.excludeKeywords ?? current.excludeKeywords,
+    eventKeywords: input.eventKeywords ?? current.eventKeywords,
+    dateKeywords: input.dateKeywords ?? current.dateKeywords,
+    venueKeywords: input.venueKeywords ?? current.venueKeywords,
     areaKeywords: input.areaKeywords ?? current.areaKeywords,
     areaBlacklist: input.areaBlacklist ?? current.areaBlacklist,
     priceKeywords: input.priceKeywords ?? current.priceKeywords,
+    matchMode: input.matchMode ?? current.matchMode,
+    notifyOn: input.notifyOn ?? current.notifyOn,
     notes: input.notes === undefined ? current.notes : input.notes,
     isTemplate: input.isTemplate ?? current.isTemplate
   };
 
   targetSchema.partial().parse(next);
+  if (next.enabled && (next.isTemplate || isTemplateName(next.name))) {
+    throw new AppError(
+      "TEMPLATE_TARGET",
+      "模板不能直接啟用。請先複製成正式監控目標並移除「模板」字樣。",
+      400
+    );
+  }
+
   if (next.enabled && isPlaceholderUrl(next.url)) {
     throw new AppError(
       "PLACEHOLDER_URL",
@@ -192,13 +238,18 @@ export async function updateTarget(id: number, input: Partial<TargetInput>): Pro
       timeout_ms = $6,
       include_keywords_json = $7,
       exclude_keywords_json = $8,
-      area_keywords_json = $9,
-      area_blacklist_json = $10,
-      price_keywords_json = $11,
-      notes = $12,
-      is_template = $13,
+      event_keywords_json = $9,
+      date_keywords_json = $10,
+      venue_keywords_json = $11,
+      area_keywords_json = $12,
+      area_blacklist_json = $13,
+      price_keywords_json = $14,
+      match_mode = $15,
+      notify_on = $16,
+      notes = $17,
+      is_template = $18,
       updated_at = CURRENT_TIMESTAMP
-    WHERE id = $14`,
+    WHERE id = $19`,
     [
       next.name,
       next.platform,
@@ -208,9 +259,14 @@ export async function updateTarget(id: number, input: Partial<TargetInput>): Pro
       next.timeoutMs,
       jsonStringify(next.includeKeywords),
       jsonStringify(next.excludeKeywords),
+      jsonStringify(next.eventKeywords),
+      jsonStringify(next.dateKeywords),
+      jsonStringify(next.venueKeywords),
       jsonStringify(next.areaKeywords),
       jsonStringify(next.areaBlacklist),
       jsonStringify(next.priceKeywords),
+      next.matchMode,
+      next.notifyOn,
       next.notes ?? null,
       db.kind === "postgres" ? next.isTemplate : next.isTemplate ? 1 : 0,
       id
@@ -218,6 +274,10 @@ export async function updateTarget(id: number, input: Partial<TargetInput>): Pro
   );
 
   return getTarget(id);
+}
+
+function isTemplateName(name: string): boolean {
+  return name.includes("模板");
 }
 
 export async function deleteTarget(id: number): Promise<void> {
@@ -246,7 +306,7 @@ export async function countTargets() {
       db.kind === "postgres" ? true : 1
     ]),
     db.queryOne<{ count: number }>(
-      "SELECT COUNT(*) AS count FROM targets WHERE enabled = $1 AND is_template = $2",
+      "SELECT COUNT(*) AS count FROM targets WHERE enabled = $1 AND is_template = $2 AND name NOT LIKE '%模板%'",
       db.kind === "postgres" ? [true, false] : [1, 0]
     ),
     db.queryOne<{ count: number }>("SELECT COUNT(*) AS count FROM targets WHERE is_template = $1", [

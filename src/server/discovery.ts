@@ -253,7 +253,9 @@ export async function addCandidateAsTarget(id: number) {
     checkIntervalSeconds: 300,
     timeoutMs: 30000,
     includeKeywords: ["立即購票", "可購買", "Available", "Buy Tickets"],
-    excludeKeywords: ["已售完", "售完", "Sold Out", "Unavailable"],
+    excludeKeywords: ["尚未開賣", "截止販售", "活動已結束", "Unavailable"],
+    matchMode: "strict",
+    notifyOn: "available_only",
     notes: "Added from discovery. Review keywords and enable manually."
   });
 

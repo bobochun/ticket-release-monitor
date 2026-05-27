@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { detectAccessBarrier, detectAvailability, detectFromText } from "../src/server/detector";
+import { notificationThresholdAllows } from "../src/server/notificationPolicy";
 import { isUnsafeOcrImageMetadata } from "../src/server/ocr";
 import { isPlaceholderUrl } from "../src/shared/platformDefaults";
 import type { Target } from "../src/shared/types";
@@ -21,9 +22,14 @@ function target(overrides: Partial<Target> = {}): Target {
     timeoutMs: 30000,
     includeKeywords: ["立即購票", "Available", "餘票", "票區", "空位", "熱賣中"],
     excludeKeywords: ["尚未開賣", "截止販售", "活動已結束"],
+    eventKeywords: [],
+    dateKeywords: [],
+    venueKeywords: [],
     areaKeywords: ["A1"],
     areaBlacklist: ["視線不良"],
     priceKeywords: [],
+    matchMode: "strict",
+    notifyOn: "available_only",
     notes: null,
     isTemplate: false,
     lastCheckedAt: null,
@@ -172,5 +178,102 @@ describe("row-level availability detector", () => {
     const barrier = detectAccessBarrier({ text: "請先登入會員後才能查看活動內容 login required" });
 
     expect(barrier.barrierType).toBe("login_required");
+  });
+
+  it("strict price 900 does not notify when available rows are only 550/350/300/450", () => {
+    const html = fixture("familife-public-area.html");
+    const result = detectAvailability({
+      target: target({
+        platform: "cpbl_fubon_guardians",
+        areaKeywords: [],
+        priceKeywords: ["900"],
+        notifyOn: "available_only"
+      }),
+      text: html,
+      html
+    });
+
+    expect(result.status).toBe("POSSIBLE_MATCH");
+    expect(result.unmetConditions).toContain("price: 900");
+    expect(result.matchingAvailableAreas).toHaveLength(0);
+    expect(result.nonMatchingAvailableAreas.length).toBeGreaterThan(0);
+    expect(result.notifyDecision).toBe("skipped");
+    expect(notificationThresholdAllows(result)).toBe(false);
+  });
+
+  it("strict exact price 550 can mark A9 as available", () => {
+    const html = fixture("familife-public-area.html");
+    const result = detectAvailability({
+      target: target({
+        platform: "cpbl_fubon_guardians",
+        areaKeywords: ["A9區"],
+        priceKeywords: ["550"]
+      }),
+      text: html,
+      html
+    });
+
+    expect(result.status).toBe("AVAILABLE");
+    expect(result.bestAvailableArea?.areaName).toContain("A9");
+    expect(result.bestAvailableArea?.price).toBe("550");
+  });
+
+  it("area A9 does not match A10", () => {
+    const text = "A10區 550 19";
+    const result = detectAvailability({
+      target: target({
+        platform: "cpbl_fubon_guardians",
+        areaKeywords: ["A9區"],
+        priceKeywords: ["550"]
+      }),
+      text,
+      source: "manual_parse"
+    });
+
+    expect(result.status).toBe("POSSIBLE_MATCH");
+    expect(result.unmetConditions).toContain("area: A9區");
+  });
+
+  it("strict mode requires area and price on the same row", () => {
+    const text = "熱區A 550 熱賣中\nA9區 900 售完\nB1區 900 8";
+    const result = detectAvailability({
+      target: target({
+        platform: "cpbl_fubon_guardians",
+        areaKeywords: ["熱區"],
+        priceKeywords: ["900"]
+      }),
+      text,
+      source: "manual_parse"
+    });
+
+    expect(result.status).toBe("POSSIBLE_MATCH");
+    expect(result.unmetConditions).toContain("same_row: 票區與價格未出現在同一個可用票區");
+  });
+
+  it("notifyOn available_and_possible allows possible match notifications", () => {
+    const html = fixture("familife-public-area.html");
+    const result = detectAvailability({
+      target: target({
+        platform: "cpbl_fubon_guardians",
+        priceKeywords: ["900"],
+        notifyOn: "available_and_possible"
+      }),
+      text: html,
+      html
+    });
+
+    expect(result.status).toBe("POSSIBLE_MATCH");
+    expect(notificationThresholdAllows(result)).toBe(true);
+  });
+
+  it("FamiLife parser does not use login text as event title", () => {
+    const html = fixture("familife-public-area.html");
+    const result = detectAvailability({
+      target: target({ platform: "cpbl_fubon_guardians", areaKeywords: ["A9區"], priceKeywords: ["550"] }),
+      text: html,
+      html
+    });
+
+    expect(result.eventTitle).not.toBe("會員登入");
   });
 });

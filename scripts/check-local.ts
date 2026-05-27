@@ -12,8 +12,8 @@ if (!target) {
   process.exitCode = 1;
 } else {
   const result = await checkTarget(target);
+  await notifyCheckResult(result);
   await saveCheckRun(result);
   await markTargetChecked(target.id, target.checkIntervalSeconds);
-  await notifyCheckResult(result);
   console.log(JSON.stringify(result, null, 2));
 }

@@ -3,6 +3,7 @@ import { statusLabel } from "@/src/shared/status";
 import { platformLabel } from "./platforms";
 import { ensureDb, getDb } from "./db";
 import { getEnvNumber } from "./settings";
+import { notificationSkipReason, notificationThresholdAllows } from "./notificationPolicy";
 
 export const NOTIFY_STATUSES: CheckStatus[] = [
   "AVAILABLE",
@@ -48,7 +49,7 @@ function mapNotification(row: NotificationEventRow): NotificationEvent {
 }
 
 export function shouldNotify(result: CheckResult): boolean {
-  return NOTIFY_STATUSES.includes(result.status);
+  return NOTIFY_STATUSES.includes(result.status) && notificationThresholdAllows(result);
 }
 
 function matchedText(result: CheckResult): string {
@@ -77,6 +78,11 @@ function areaList(areas: CheckResult["parsedAreas"], available: boolean): string
   return filtered.length > 0 ? filtered.join("\n") : "- 無";
 }
 
+function areaListDirect(areas: CheckResult["parsedAreas"]): string {
+  const filtered = areas.slice(0, 8).map((area) => `- ${areaLine(area)}`);
+  return filtered.length > 0 ? filtered.join("\n") : "- 無";
+}
+
 function formatTaipeiTime(value: string): string {
   return new Intl.DateTimeFormat("zh-TW", {
     timeZone: "Asia/Taipei",
@@ -102,6 +108,11 @@ export function alertBody(result: CheckResult, platform = "generic"): string {
     `來源：${result.source}`,
     `命中：${matchedText(result) || "無"}`,
     result.bestAvailableArea ? `最佳命中：${areaLine(result.bestAvailableArea)}` : null,
+    result.matchingAvailableAreas.length > 0 ? `\n符合條件票區：\n${areaListDirect(result.matchingAvailableAreas)}` : null,
+    result.nonMatchingAvailableAreas.length > 0 && result.status === "POSSIBLE_MATCH"
+      ? `\n有票但未符合條件：\n${areaListDirect(result.nonMatchingAvailableAreas)}`
+      : null,
+    result.unmetConditions.length > 0 ? `\n未符合：\n- ${result.unmetConditions.join("\n- ")}` : null,
     `可用票區：${result.availableAreaCount}`,
     `售完票區：${result.soldOutAreaCount}`,
     result.parsedAreas.length > 0 ? `\n可用票區列表：\n${areaList(result.parsedAreas, true)}` : null,
@@ -132,7 +143,11 @@ function notificationFingerprint(result: CheckResult): string {
     source: result.source,
     keywords: [...result.matchedKeywords].sort(),
     areas: [...result.matchedAreas].sort(),
-    prices: [...result.matchedPrices].sort()
+    prices: [...result.matchedPrices].sort(),
+    matchingAreas: result.matchingAvailableAreas
+      .map((area) => [area.areaName, area.price ?? "", area.remainingCount ?? "", area.statusText].join(":"))
+      .sort(),
+    unmetConditions: [...result.unmetConditions].sort()
   });
 }
 
@@ -259,7 +274,15 @@ async function sendDiscord(result: CheckResult, platform: string): Promise<boole
             { name: "時間", value: result.eventDate || "未擷取", inline: true },
             { name: "場館", value: result.venue || "未擷取", inline: true },
             { name: "來源", value: result.source, inline: true },
+            { name: "比對 / 通知", value: `${result.matchMode} / ${result.notifyOn}`, inline: true },
             { name: "最佳命中", value: result.bestAvailableArea ? areaLine(result.bestAvailableArea) : "無", inline: false },
+            { name: "符合條件票區", value: areaListDirect(result.matchingAvailableAreas).slice(0, 1000), inline: false },
+            ...(result.status === "POSSIBLE_MATCH"
+              ? [
+                  { name: "有票但未符合條件", value: areaListDirect(result.nonMatchingAvailableAreas).slice(0, 1000), inline: false },
+                  { name: "未符合", value: result.unmetConditions.join("、") || "無", inline: false }
+                ]
+              : []),
             { name: "可用 / 售完票區", value: `${result.availableAreaCount} / ${result.soldOutAreaCount}`, inline: true },
             { name: "命中關鍵字", value: result.matchedKeywords.join("、") || "無", inline: false },
             { name: "命中票區", value: result.matchedAreas.join("、") || "無", inline: true },
@@ -319,14 +342,33 @@ export async function notifyCheckResult(
   result: CheckResult,
   platform = "generic"
 ): Promise<NotificationSendResult[]> {
-  if (!shouldNotify(result)) return [];
+  if (!NOTIFY_STATUSES.includes(result.status)) return [];
+
+  const thresholdSkip = notificationSkipReason(result);
+  if (thresholdSkip) {
+    result.notifyDecision = "skipped";
+    result.notifySkipReason = thresholdSkip;
+    await saveNotification("policy", result, "skipped", alertBody(result, platform), thresholdSkip);
+    return [{ channel: "console", status: "skipped", error: thresholdSkip }];
+  }
 
   const results: NotificationSendResult[] = [];
   results.push(await notifyChannel("telegram", result, platform));
   results.push(await notifyChannel("discord", result, platform));
+  result.notifyDecision = summarizeNotificationDecision(results);
+  result.notifySkipReason = result.notifyDecision === "sent" ? null : results.find((item) => item.error)?.error ?? result.notifySkipReason;
 
   console.log(alertBody(result, platform));
   return results;
+}
+
+function summarizeNotificationDecision(results: NotificationSendResult[]): CheckResult["notifyDecision"] {
+  if (results.some((result) => result.status === "sent")) return "sent";
+  if (results.some((result) => result.status === "error")) return "error";
+  if (results.some((result) => result.status === "quiet_hours")) return "quiet_hours";
+  if (results.some((result) => result.status === "deduped")) return "deduped";
+  if (results.some((result) => result.status === "skipped")) return "skipped";
+  return null;
 }
 
 export async function sendTestNotification(
@@ -349,6 +391,23 @@ export async function sendTestNotification(
     availableAreaCount: 0,
     soldOutAreaCount: 0,
     source: "auto_fetch",
+    matchMode: "strict",
+    notifyOn: "available_and_possible",
+    notifyDecision: null,
+    notifySkipReason: null,
+    unmetConditions: [],
+    matchingAvailableAreas: [],
+    nonMatchingAvailableAreas: [],
+    matchSummary: {
+      hasAnyAvailableArea: false,
+      hasAreaConstraint: false,
+      hasPriceConstraint: false,
+      hasDateConstraint: false,
+      hasVenueConstraint: false,
+      exactAreaMatched: false,
+      exactPriceMatched: false,
+      exactSameRowMatched: false
+    },
     botCheckDetected: false,
     checkedAt: new Date().toISOString(),
     durationMs: 0,

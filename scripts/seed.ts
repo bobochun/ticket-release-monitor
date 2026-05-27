@@ -9,7 +9,7 @@ printEnvLoadSummary(loadedFiles);
 console.log(`Database: ${getDbEnvInfo().label}`);
 
 const cpblInclude = ["立即購票", "我要購票", "可購買", "剩餘", "熱區", "空位"];
-const cpblExclude = ["已售完", "暫無票券", "尚未開賣", "截止販售"];
+const cpblExclude = ["尚未開賣", "截止販售", "活動已結束", "已截止"];
 const cpblAreas = ["熱區", "A1", "A2", "B1", "B2"];
 const cpblAreaBlacklist = ["身障", "視線不良"];
 
@@ -30,9 +30,6 @@ const eventInclude = [
   "加入購物車"
 ];
 const eventExclude = [
-  "已售完",
-  "售完",
-  "Sold Out",
   "暫無票券",
   "尚未開賣",
   "尚未啟售",
@@ -54,7 +51,7 @@ const targets: TargetInput[] = [
     checkIntervalSeconds: 300,
     timeoutMs: 30000,
     includeKeywords: ["立即購票", "我要購票", "可購買", "剩餘", "熱區", "空位", "加入購物車"],
-    excludeKeywords: ["已售完", "暫無票券", "尚未開賣", "截止販售", "銷售一空", "已截止"],
+    excludeKeywords: ["尚未開賣", "截止販售", "活動已結束", "已截止"],
     areaKeywords: cpblAreas,
     areaBlacklist: cpblAreaBlacklist,
     priceKeywords: [],
@@ -69,7 +66,7 @@ const targets: TargetInput[] = [
     checkIntervalSeconds: 300,
     timeoutMs: 30000,
     includeKeywords: ["立即購票", "我要購票", "可購買", "剩餘", "熱區", "空位", "加入購物車"],
-    excludeKeywords: ["已售完", "暫無票券", "尚未開賣", "截止販售", "銷售一空", "已截止"],
+    excludeKeywords: ["尚未開賣", "截止販售", "活動已結束", "已截止"],
     areaKeywords: cpblAreas,
     areaBlacklist: cpblAreaBlacklist,
     priceKeywords: [],
@@ -84,7 +81,7 @@ const targets: TargetInput[] = [
     checkIntervalSeconds: 300,
     timeoutMs: 30000,
     includeKeywords: ["立即購票", "立即訂購", "可購買", "可訂購", "剩餘", "空位", "選擇票區"],
-    excludeKeywords: ["已售完", "售完", "暫無票券", "尚未開賣", "截止販售", "銷售一空", "已截止"],
+    excludeKeywords: ["尚未開賣", "截止販售", "活動已結束", "已截止"],
     areaKeywords: cpblAreas,
     areaBlacklist: cpblAreaBlacklist,
     priceKeywords: [],

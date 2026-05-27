@@ -34,3 +34,15 @@ Ticket Radar 目前使用 parserRegistry 依平台選擇 parser。所有 parser 
 ## iBon / FamiLife 備援
 
 如果 server-side fetch 取得不到完整票區，系統會保留安全狀態與訊息，建議使用 Manual Parse 貼上你在官方頁看到的公開票區內容。
+
+## 富邦 / FamiLife eventTitle
+
+FamiLife parser 會避免把 header 或登入區塊的 `會員登入` 當作活動名稱。活動標題會優先取主內容中的比賽名稱、活動名稱或含 `vs / @ / 職棒` 的文字；抓不到就留空，不會用登入文字誤導 History 與通知。
+
+## 通知精準度
+
+各平台 parser 解析到的可用票區會再交給 target matching：
+
+- `matchMode=strict`：票區、價格、日期、場館條件都符合才是 `AVAILABLE`。
+- `notifyOn=available_only`：只有 `AVAILABLE` 會送 Telegram / Discord。
+- `POSSIBLE_MATCH` 代表有票但不符合使用者指定條件，預設只寫入 History。

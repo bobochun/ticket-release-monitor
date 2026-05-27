@@ -44,9 +44,9 @@ export async function runDueTargetChecks(trigger?: CronTrigger): Promise<Schedul
     }
 
     const result = await checkTarget(target);
+    await notifyCheckResult(result, target.platform);
     await saveCheckRun(result);
     await markTargetChecked(target.id, target.checkIntervalSeconds);
-    await notifyCheckResult(result, target.platform);
     results.push(result);
   }
 

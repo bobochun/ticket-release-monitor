@@ -36,6 +36,41 @@ Ticket Radar 現在會優先解析公開票區 row，而不是先用整頁關鍵
 - [docs/PLATFORM_PARSERS.md](docs/PLATFORM_PARSERS.md)
 - [docs/MANUAL_PARSE.md](docs/MANUAL_PARSE.md)
 
+## 精準比對與通知門檻
+
+Target 預設使用 `strict` 嚴格比對與 `available_only` 通知門檻：
+
+- 有可用票區，且同一個 row 符合你設定的票區與價格 → `AVAILABLE`，才通知。
+- 有可用票區，但不符合指定票區、價格、日期或場館 → `POSSIBLE_MATCH`，只寫入 History，預設不通知。
+- 完全沒有可用票區 → `UNAVAILABLE`。
+
+價格會做 exact numeric match。填 `900` 只會匹配票價 `900`，不會匹配 `550`、`90` 或 `1900`。
+
+例如你設定：
+
+```txt
+票區關鍵字：熱區
+價格關鍵字：900
+通知門檻：只在符合條件時通知
+```
+
+但頁面只解析到：
+
+```txt
+A9區 / 550 / 19
+A10區 / 550 / 熱賣中
+```
+
+系統會記錄：
+
+```txt
+POSSIBLE_MATCH
+有票但未符合指定價格 900
+通知 skipped
+```
+
+不會再把不符合條件的票推送到 Telegram / Discord。
+
 ## 安全限制
 
 本工具不會：

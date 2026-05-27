@@ -73,7 +73,7 @@ export function TargetList({
     const body = await response.json().catch(() => ({}));
     setMessage(
       response.ok
-        ? `${target.name}：${statusLabel(body.result.status)}，${body.result.message} 可用 ${body.result.availableAreaCount ?? 0} 區，售完 ${body.result.soldOutAreaCount ?? 0} 區。最佳命中：${body.result.bestAvailableArea?.areaName ?? "無"}`
+        ? `${target.name}：${statusLabel(body.result.status)}，${body.result.message} 可用 ${body.result.availableAreaCount ?? 0} 區，符合 ${body.result.matchingAvailableAreas?.length ?? 0} 區。通知：${body.result.notifyDecision ?? "依設定"}${body.result.notifySkipReason ? `（${body.result.notifySkipReason}）` : ""}`
         : body.error || "手動檢查失敗。"
     );
     setBusyId(null);
@@ -160,6 +160,11 @@ export function TargetList({
                 這是 placeholder 模板網址，請換成實際官方售票頁後再啟用。
               </p>
             ) : null}
+            {target.isTemplate || target.name.includes("模板") ? (
+              <p className="mt-3 rounded-md bg-amber-50 p-3 text-sm font-bold text-amber-800">
+                這是模板，請先複製成正式監控目標並移除「模板」字樣再啟用。
+              </p>
+            ) : null}
 
             <dl className="mt-3 grid grid-cols-2 gap-2 text-xs font-bold text-slate-600 sm:grid-cols-4">
               <div className="rounded-md bg-slate-100 p-2">
@@ -178,6 +183,14 @@ export function TargetList({
                 <dt>Timeout</dt>
                 <dd className="text-slate-900">{target.timeoutMs}ms</dd>
               </div>
+              <div className="rounded-md bg-slate-100 p-2">
+                <dt>比對模式</dt>
+                <dd className="text-slate-900">{target.matchMode}</dd>
+              </div>
+              <div className="rounded-md bg-slate-100 p-2">
+                <dt>通知門檻</dt>
+                <dd className="text-slate-900">{target.notifyOn}</dd>
+              </div>
             </dl>
 
             <div className="mt-4 grid grid-cols-2 gap-2 sm:flex">
@@ -189,7 +202,12 @@ export function TargetList({
                 <ExternalLink size={17} />
                 開啟官方頁面
               </a>
-              <button className="btn btn-secondary" onClick={() => patchTarget(target, !target.enabled)} disabled={busyId === target.id}>
+              <button
+                className="btn btn-secondary"
+                onClick={() => patchTarget(target, !target.enabled)}
+                disabled={busyId === target.id || (!target.enabled && (target.isTemplate || target.name.includes("模板") || placeholder))}
+                title={!target.enabled && (target.isTemplate || target.name.includes("模板") || placeholder) ? "模板或 placeholder 不能直接啟用" : undefined}
+              >
                 <Power size={17} />
                 {target.enabled ? "停用" : "啟用"}
               </button>

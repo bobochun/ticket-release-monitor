@@ -76,9 +76,14 @@ async function handleManualParse(input: z.infer<typeof manualParseSchema>) {
       timeoutMs: 30000,
       includeKeywords: defaults.includeKeywords,
       excludeKeywords: defaults.excludeKeywords,
+      eventKeywords: [],
+      dateKeywords: [],
+      venueKeywords: [],
       areaKeywords: defaults.areaKeywords,
       areaBlacklist: defaults.areaBlacklist,
       priceKeywords: defaults.priceKeywords,
+      matchMode: "strict",
+      notifyOn: "available_only",
       notes: null,
       isTemplate: false,
       lastCheckedAt: null,
@@ -97,8 +102,8 @@ async function handleManualParse(input: z.infer<typeof manualParseSchema>) {
     targetId: existingTarget?.id ?? null,
     targetName: existingTarget?.name ?? "Manual Parse"
   };
-  const run = input.saveRun ? await saveCheckRun(result) : null;
   const notifications = input.sendNotification ? await notifyCheckResult(result, platform) : [];
+  const run = input.saveRun ? await saveCheckRun(result) : null;
 
   return NextResponse.json({ ok: true, result, run, notifications });
 }

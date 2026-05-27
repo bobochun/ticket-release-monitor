@@ -3,11 +3,12 @@ import type {
   CheckSource,
   CheckStatus,
   ParsedAvailability,
-  ParsedTicketArea,
   Target
 } from "@/src/shared/types";
 import { getParserForPlatform } from "./parsers/parserRegistry";
 import { hasMeaningfulTicketContent } from "./parsers/genericAvailabilityParser";
+import { evaluateTargetMatch } from "./matching";
+import { notificationSkipReason } from "./notificationPolicy";
 import { keywordHits, normalizeText } from "./text";
 
 export { keywordHits, normalizeText };
@@ -170,6 +171,12 @@ function baseResult(
   startedAt: number,
   extras: Partial<CheckResult> = {}
 ): CheckResult {
+  const skipReason =
+    extras.notifySkipReason ??
+    notificationSkipReason({
+      status,
+      notifyOn: extras.notifyOn ?? target.notifyOn ?? "available_only"
+    });
   return {
     targetId: target.id,
     targetName: target.name,
@@ -187,11 +194,28 @@ function baseResult(
     availableAreaCount: 0,
     soldOutAreaCount: 0,
     source: "auto_fetch",
+    matchMode: target.matchMode ?? "strict",
+    notifyOn: target.notifyOn ?? "available_only",
+    unmetConditions: [],
+    matchingAvailableAreas: [],
+    nonMatchingAvailableAreas: [],
+    matchSummary: {
+      hasAnyAvailableArea: false,
+      hasAreaConstraint: target.areaKeywords.length > 0,
+      hasPriceConstraint: target.priceKeywords.length > 0,
+      hasDateConstraint: target.dateKeywords.length > 0,
+      hasVenueConstraint: target.venueKeywords.length > 0,
+      exactAreaMatched: false,
+      exactPriceMatched: false,
+      exactSameRowMatched: false
+    },
     botCheckDetected: status === "BOT_CHECK",
     checkedAt: new Date().toISOString(),
     durationMs: Date.now() - startedAt,
     error: null,
-    ...extras
+    ...extras,
+    notifyDecision: extras.notifyDecision ?? (skipReason ? "skipped" : null),
+    notifySkipReason: extras.notifySkipReason ?? skipReason
   };
 }
 
@@ -240,68 +264,90 @@ function resultFromParsedAvailability(
   startedAt: number,
   source: CheckSource
 ): CheckResult {
-  const blacklist = target.areaBlacklist;
-  const rowAllowed = (area: ParsedTicketArea) => keywordHits(area.areaName, blacklist).length === 0;
-  const areaMatches = (area: ParsedTicketArea) =>
-    target.areaKeywords.length === 0 || area.matchedAreaKeywords.length > 0;
-  const priceMatches = (area: ParsedTicketArea) =>
-    target.priceKeywords.length === 0 || area.matchedPriceKeywords.length > 0;
-  const availableRows = parsed.areas.filter((area) => area.isAvailable && rowAllowed(area));
-  const matchingRows = availableRows.filter((area) => areaMatches(area) && priceMatches(area));
-  const soldOutRows = parsed.areas.filter((area) => area.isSoldOut);
-  const bestAvailableArea = matchingRows[0] ?? availableRows[0] ?? null;
+  const evaluation = evaluateTargetMatch({ target, parsedAvailability: parsed });
+  const availableRows = [
+    ...evaluation.matchingAvailableAreas,
+    ...evaluation.nonMatchingAvailableAreas
+  ];
+  const bestAvailableArea = evaluation.bestAvailableArea ?? null;
   const includeHits = keywordHits(text, target.includeKeywords);
-  const matchedAreaNames = (matchingRows.length > 0 ? matchingRows : availableRows)
+  const matchedAreaNames = (evaluation.matchingAvailableAreas.length > 0 ? evaluation.matchingAvailableAreas : availableRows)
     .slice(0, 10)
     .map((area) => area.areaName);
-  const matchedPrices = (matchingRows.length > 0 ? matchingRows : availableRows)
+  const matchedPrices = (evaluation.matchingAvailableAreas.length > 0 ? evaluation.matchingAvailableAreas : availableRows)
     .map((area) => area.price)
     .filter((price): price is string => Boolean(price));
+  const notifySkip = notificationSkipReason({
+    status: evaluation.status,
+    notifyOn: target.notifyOn ?? "available_only"
+  });
 
-  if (matchingRows.length > 0) {
-    return baseResult(target, "AVAILABLE", "解析到符合條件的可用票區，請開啟官方頁面人工確認。", startedAt, {
+  if (evaluation.status === "AVAILABLE") {
+    return baseResult(target, "AVAILABLE", evaluation.message, startedAt, {
       matchedKeywords: unique([...includeHits, ...parsed.pageSignals, bestAvailableArea?.statusText || ""]),
       matchedAreas: unique(matchedAreaNames),
       matchedPrices: unique(matchedPrices),
-      parsedAreas: parsed.areas,
+      parsedAreas: evaluation.parsedAreas,
       eventTitle: parsed.eventTitle ?? null,
       eventDate: parsed.eventDate ?? null,
       venue: parsed.venue ?? null,
       bestAvailableArea,
       availableAreaCount: availableRows.length,
-      soldOutAreaCount: soldOutRows.length,
-      source: source === "auto_fetch" && parsed.areas.some((area) => area.source === "ocr") ? "ocr_assisted" : source
+      soldOutAreaCount: evaluation.soldOutAreas.length,
+      source: source === "auto_fetch" && parsed.areas.some((area) => area.source === "ocr") ? "ocr_assisted" : source,
+      matchMode: target.matchMode ?? "strict",
+      notifyOn: target.notifyOn ?? "available_only",
+      notifySkipReason: notifySkip,
+      notifyDecision: notifySkip ? "skipped" : null,
+      unmetConditions: evaluation.unmetConditions,
+      matchingAvailableAreas: evaluation.matchingAvailableAreas,
+      nonMatchingAvailableAreas: evaluation.nonMatchingAvailableAreas,
+      matchSummary: evaluation.matchSummary
     });
   }
 
-  if (availableRows.length > 0) {
-    return baseResult(target, "POSSIBLE_MATCH", "解析到可用票區，但未完全符合指定票區或價格條件。", startedAt, {
+  if (evaluation.status === "POSSIBLE_MATCH") {
+    return baseResult(target, "POSSIBLE_MATCH", evaluation.message, startedAt, {
       matchedKeywords: unique([...includeHits, ...parsed.pageSignals, bestAvailableArea?.statusText || ""]),
       matchedAreas: unique(matchedAreaNames),
       matchedPrices: unique(matchedPrices),
-      parsedAreas: parsed.areas,
+      parsedAreas: evaluation.parsedAreas,
       eventTitle: parsed.eventTitle ?? null,
       eventDate: parsed.eventDate ?? null,
       venue: parsed.venue ?? null,
       bestAvailableArea,
       availableAreaCount: availableRows.length,
-      soldOutAreaCount: soldOutRows.length,
-      source: source === "auto_fetch" && parsed.areas.some((area) => area.source === "ocr") ? "ocr_assisted" : source
+      soldOutAreaCount: evaluation.soldOutAreas.length,
+      source: source === "auto_fetch" && parsed.areas.some((area) => area.source === "ocr") ? "ocr_assisted" : source,
+      matchMode: target.matchMode ?? "strict",
+      notifyOn: target.notifyOn ?? "available_only",
+      notifySkipReason: notifySkip,
+      notifyDecision: notifySkip ? "skipped" : null,
+      unmetConditions: evaluation.unmetConditions,
+      matchingAvailableAreas: evaluation.matchingAvailableAreas,
+      nonMatchingAvailableAreas: evaluation.nonMatchingAvailableAreas,
+      matchSummary: evaluation.matchSummary
     });
   }
 
-  return baseResult(target, "UNAVAILABLE", "已解析票區，但目前沒有可用票區。", startedAt, {
+  return baseResult(target, "UNAVAILABLE", evaluation.message, startedAt, {
     matchedKeywords: unique([...includeHits, ...parsed.pageSignals]),
     matchedAreas: [],
     matchedPrices: [],
-    parsedAreas: parsed.areas,
+    parsedAreas: evaluation.parsedAreas,
     eventTitle: parsed.eventTitle ?? null,
     eventDate: parsed.eventDate ?? null,
     venue: parsed.venue ?? null,
     bestAvailableArea: null,
     availableAreaCount: 0,
-    soldOutAreaCount: soldOutRows.length,
-    source
+    soldOutAreaCount: evaluation.soldOutAreas.length,
+    source,
+    notifySkipReason: notifySkip,
+    notifyDecision: notifySkip ? "skipped" : null,
+    unmetConditions: evaluation.unmetConditions,
+    matchingAvailableAreas: evaluation.matchingAvailableAreas,
+    nonMatchingAvailableAreas: evaluation.nonMatchingAvailableAreas,
+    matchSummary: evaluation.matchSummary
   });
 }
 

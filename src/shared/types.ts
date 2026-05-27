@@ -32,6 +32,20 @@ export type ParsedAvailability = {
 };
 
 export type CheckSource = "auto_fetch" | "manual_parse" | "ocr_assisted";
+export type MatchMode = "strict" | "normal" | "loose";
+export type NotifyOn = "available_only" | "available_and_possible" | "all";
+export type NotifyDecision = "sent" | "skipped" | "deduped" | "quiet_hours" | "error" | null;
+
+export type MatchSummary = {
+  hasAnyAvailableArea: boolean;
+  hasAreaConstraint: boolean;
+  hasPriceConstraint: boolean;
+  hasDateConstraint: boolean;
+  hasVenueConstraint: boolean;
+  exactAreaMatched: boolean;
+  exactPriceMatched: boolean;
+  exactSameRowMatched: boolean;
+};
 
 export type Target = {
   id: number;
@@ -43,9 +57,14 @@ export type Target = {
   timeoutMs: number;
   includeKeywords: string[];
   excludeKeywords: string[];
+  eventKeywords: string[];
+  dateKeywords: string[];
+  venueKeywords: string[];
   areaKeywords: string[];
   areaBlacklist: string[];
   priceKeywords: string[];
+  matchMode: MatchMode;
+  notifyOn: NotifyOn;
   notes: string | null;
   isTemplate: boolean;
   lastCheckedAt: string | null;
@@ -72,6 +91,14 @@ export type CheckRun = {
   availableAreaCount: number;
   soldOutAreaCount: number;
   source: CheckSource;
+  matchMode: MatchMode;
+  notifyOn: NotifyOn;
+  notifyDecision: NotifyDecision;
+  notifySkipReason: string | null;
+  unmetConditions: string[];
+  matchingAvailableAreas: ParsedTicketArea[];
+  nonMatchingAvailableAreas: ParsedTicketArea[];
+  matchSummary: MatchSummary;
   botCheckDetected: boolean;
   checkedAt: string;
   durationMs: number;
@@ -132,9 +159,14 @@ export type TargetInput = {
   timeoutMs?: number;
   includeKeywords?: string[];
   excludeKeywords?: string[];
+  eventKeywords?: string[];
+  dateKeywords?: string[];
+  venueKeywords?: string[];
   areaKeywords?: string[];
   areaBlacklist?: string[];
   priceKeywords?: string[];
+  matchMode?: MatchMode;
+  notifyOn?: NotifyOn;
   notes?: string | null;
   isTemplate?: boolean;
 };

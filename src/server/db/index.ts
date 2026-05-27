@@ -42,6 +42,7 @@ export async function initDb(): Promise<void> {
   }
 
   await migrateCheckRunsColumns(db);
+  await migrateTargetColumns(db);
 }
 
 export async function ensureDb(): Promise<void> {
@@ -88,7 +89,14 @@ async function migrateCheckRunsColumns(db: DatabaseClient): Promise<void> {
     ["best_available_area_json", "TEXT", null],
     ["available_area_count", "INTEGER", "0"],
     ["sold_out_area_count", "INTEGER", "0"],
-    ["source", "TEXT", "'auto_fetch'"]
+    ["source", "TEXT", "'auto_fetch'"],
+    ["match_mode", "TEXT", "'strict'"],
+    ["notify_on", "TEXT", "'available_only'"],
+    ["notify_decision", "TEXT", null],
+    ["notify_skip_reason", "TEXT", null],
+    ["unmet_conditions_json", "TEXT", "'[]'"],
+    ["matching_available_areas_json", "TEXT", "'[]'"],
+    ["non_matching_available_areas_json", "TEXT", "'[]'"]
   ] as const;
 
   if (db.kind === "postgres") {
@@ -120,4 +128,48 @@ async function backfillCheckRunsMigrationDefaults(db: DatabaseClient): Promise<v
   await db.execute("UPDATE check_runs SET available_area_count = 0 WHERE available_area_count IS NULL");
   await db.execute("UPDATE check_runs SET sold_out_area_count = 0 WHERE sold_out_area_count IS NULL");
   await db.execute("UPDATE check_runs SET source = 'auto_fetch' WHERE source IS NULL");
+  await db.execute("UPDATE check_runs SET match_mode = 'strict' WHERE match_mode IS NULL");
+  await db.execute("UPDATE check_runs SET notify_on = 'available_only' WHERE notify_on IS NULL");
+  await db.execute("UPDATE check_runs SET unmet_conditions_json = '[]' WHERE unmet_conditions_json IS NULL");
+  await db.execute("UPDATE check_runs SET matching_available_areas_json = '[]' WHERE matching_available_areas_json IS NULL");
+  await db.execute("UPDATE check_runs SET non_matching_available_areas_json = '[]' WHERE non_matching_available_areas_json IS NULL");
+}
+
+async function migrateTargetColumns(db: DatabaseClient): Promise<void> {
+  const columns = [
+    ["event_keywords_json", "TEXT", "'[]'"],
+    ["date_keywords_json", "TEXT", "'[]'"],
+    ["venue_keywords_json", "TEXT", "'[]'"],
+    ["match_mode", "TEXT", "'strict'"],
+    ["notify_on", "TEXT", "'available_only'"]
+  ] as const;
+
+  if (db.kind === "postgres") {
+    for (const [name, type, defaultValue] of columns) {
+      await db.execute(
+        `ALTER TABLE targets ADD COLUMN IF NOT EXISTS ${name} ${type}${defaultValue ? ` DEFAULT ${defaultValue}` : ""}`
+      );
+    }
+    await backfillTargetMigrationDefaults(db);
+    return;
+  }
+
+  const existing = await db.query<{ name: string }>("PRAGMA table_info(targets)");
+  const existingNames = new Set(existing.map((column) => column.name));
+  for (const [name, type, defaultValue] of columns) {
+    if (!existingNames.has(name)) {
+      await db.execute(
+        `ALTER TABLE targets ADD COLUMN ${name} ${type}${defaultValue ? ` DEFAULT ${defaultValue}` : ""}`
+      );
+    }
+  }
+  await backfillTargetMigrationDefaults(db);
+}
+
+async function backfillTargetMigrationDefaults(db: DatabaseClient): Promise<void> {
+  await db.execute("UPDATE targets SET event_keywords_json = '[]' WHERE event_keywords_json IS NULL");
+  await db.execute("UPDATE targets SET date_keywords_json = '[]' WHERE date_keywords_json IS NULL");
+  await db.execute("UPDATE targets SET venue_keywords_json = '[]' WHERE venue_keywords_json IS NULL");
+  await db.execute("UPDATE targets SET match_mode = 'strict' WHERE match_mode IS NULL");
+  await db.execute("UPDATE targets SET notify_on = 'available_only' WHERE notify_on IS NULL");
 }

@@ -130,6 +130,21 @@ export function RunTable({
                   {run.availableAreaCount} / {run.soldOutAreaCount}
                 </p>
                 <p>
+                  <span className="font-bold text-slate-800">比對 / 通知：</span>
+                  {run.matchMode} / {run.notifyOn}
+                </p>
+                <p>
+                  <span className="font-bold text-slate-800">通知判斷：</span>
+                  {run.notifyDecision ?? "無"}
+                  {run.notifySkipReason ? `（${run.notifySkipReason}）` : ""}
+                </p>
+                {run.unmetConditions.length > 0 ? (
+                  <p className="rounded-md bg-amber-50 p-2 font-semibold text-amber-800">
+                    <span className="font-bold">未符合條件：</span>
+                    {run.unmetConditions.join("、")}
+                  </p>
+                ) : null}
+                <p>
                   <span className="font-bold text-slate-800">最佳命中：</span>
                   {run.bestAvailableArea
                     ? `${run.bestAvailableArea.areaName}${run.bestAvailableArea.price ? ` / ${run.bestAvailableArea.price}` : ""} / ${run.bestAvailableArea.statusText}`
@@ -148,9 +163,33 @@ export function RunTable({
                   {run.matchedPrices.join("、") || "無"}
                 </p>
                 <p>
-                  <span className="font-bold text-slate-800">通知狀態：</span>
-                  {event ? `${event.channel} / ${event.status}` : "無通知紀錄或未達通知條件"}
+                  <span className="font-bold text-slate-800">通知事件：</span>
+                  {event ? `${event.channel} / ${event.status}` : "無通知事件"}
                 </p>
+                {run.matchingAvailableAreas.length > 0 ? (
+                  <div className="rounded-md bg-green-50 p-2 font-semibold text-green-800">
+                    <p className="font-black">符合條件票區</p>
+                    <ul className="mt-1 grid gap-1">
+                      {run.matchingAvailableAreas.slice(0, 8).map((area, index) => (
+                        <li key={`${area.areaName}-${index}`}>
+                          {area.areaName} {area.price ? `/ ${area.price}` : ""} / {area.remainingCount ?? area.statusText}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {run.nonMatchingAvailableAreas.length > 0 ? (
+                  <div className="rounded-md bg-slate-50 p-2 font-semibold text-slate-700">
+                    <p className="font-black">有票但未符合條件</p>
+                    <ul className="mt-1 grid gap-1">
+                      {run.nonMatchingAvailableAreas.slice(0, 8).map((area, index) => (
+                        <li key={`${area.areaName}-${index}`}>
+                          {area.areaName} {area.price ? `/ ${area.price}` : ""} / {area.remainingCount ?? area.statusText}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
                 {run.error ? (
                   <p className="rounded-md bg-red-50 p-2 font-semibold text-red-700">
                     <span className="font-bold">錯誤：</span>

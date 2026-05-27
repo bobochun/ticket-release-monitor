@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import type { ParsedAvailability, ParsedTicketArea, Target } from "../../shared/types";
 import { getPlatformDefault, type PlatformDefault } from "../../shared/platformDefaults";
+import { matchedAreaKeywordsForArea, matchedPriceKeywordsForArea } from "../matching";
 import { keywordHits, normalizeText } from "../text";
 import type { AvailabilityParser, AvailabilityParserInput } from "./types";
 
@@ -254,8 +255,10 @@ function buildArea(input: {
     remainingCount,
     isAvailable,
     isSoldOut,
-    matchedAreaKeywords: input.target ? keywordHits(areaName, input.target.areaKeywords) : [],
-    matchedPriceKeywords: input.target ? keywordHits(price, input.target.priceKeywords) : [],
+    matchedAreaKeywords: input.target ? matchedAreaKeywordsForArea(areaName, input.target.areaKeywords) : [],
+    matchedPriceKeywords: input.target
+      ? matchedPriceKeywordsForArea({ areaName, price, statusText }, input.target.priceKeywords)
+      : [],
     source: input.source
   };
 }
@@ -298,9 +301,20 @@ function dedupeAreas(areas: ParsedTicketArea[]): ParsedTicketArea[] {
 
 function extractEventMeta(html: string, text: string): Pick<ParsedAvailability, "eventTitle" | "eventDate" | "venue"> {
   const $ = cheerio.load(html || "");
-  const title =
-    compact($("h1, h2, .title, [class*=title]").first().text()) ||
-    splitCandidateLines(text).find((line) => /職棒|演唱會|@|vs/i.test(line));
+  const badTitleKeywords = ["會員登入", "登入", "購物車", "訂單結帳", "完成訂購"];
+  const titleCandidates = [
+    ...$("h1, h2, .title, [class*=title], [class*=event], [class*=game]")
+      .toArray()
+      .map((node) => compact($(node).text()))
+      .filter(Boolean),
+    ...splitCandidateLines(text).filter((line) => /職棒|演唱會|@|vs|VS|v\./i.test(line))
+  ];
+  const title = titleCandidates.find(
+    (candidate) =>
+      candidate.length >= 6 &&
+      candidate.length <= 120 &&
+      keywordHits(candidate, badTitleKeywords).length === 0
+  );
   const date = text.match(/\d{4}[/-]\d{1,2}[/-]\d{1,2}(?:\(.+?\))?(?:\s+\d{1,2}:\d{2})?/)?.[0];
   const venue = splitCandidateLines(text).find((line) => /球場|巨蛋|場館|中心|Legacy|Zepp/i.test(line) && line.length <= 50);
   return {

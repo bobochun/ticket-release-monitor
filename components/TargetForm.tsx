@@ -32,9 +32,14 @@ type FormState = {
   timeoutMs: number;
   includeKeywords: string;
   excludeKeywords: string;
+  eventKeywords: string;
+  dateKeywords: string;
+  venueKeywords: string;
   areaKeywords: string;
   areaBlacklist: string;
   priceKeywords: string;
+  matchMode: Target["matchMode"];
+  notifyOn: Target["notifyOn"];
   notes: string;
 };
 
@@ -50,9 +55,14 @@ function stateFromTarget(target?: Target): FormState {
     timeoutMs: target?.timeoutMs ?? 30000,
     includeKeywords: target ? joinKeywords(target.includeKeywords) : joinKeywords(preset.includeKeywords),
     excludeKeywords: target ? joinKeywords(target.excludeKeywords) : joinKeywords(preset.excludeKeywords),
+    eventKeywords: target ? joinKeywords(target.eventKeywords) : "",
+    dateKeywords: target ? joinKeywords(target.dateKeywords) : "",
+    venueKeywords: target ? joinKeywords(target.venueKeywords) : "",
     areaKeywords: target ? joinKeywords(target.areaKeywords) : joinKeywords(preset.areaKeywords),
     areaBlacklist: target ? joinKeywords(target.areaBlacklist) : joinKeywords(preset.areaBlacklist),
     priceKeywords: target ? joinKeywords(target.priceKeywords) : joinKeywords(preset.priceKeywords),
+    matchMode: target?.matchMode ?? "strict",
+    notifyOn: target?.notifyOn ?? "available_only",
     notes: target?.notes ?? preset.notes
   };
 }
@@ -93,6 +103,8 @@ export function TargetForm({
       areaKeywords: joinKeywords(next.areaKeywords),
       areaBlacklist: joinKeywords(next.areaBlacklist),
       priceKeywords: joinKeywords(next.priceKeywords),
+      matchMode: "strict",
+      notifyOn: "available_only",
       notes: next.notes
     }));
     setDirty(true);
@@ -115,6 +127,11 @@ export function TargetForm({
       setSaving(false);
       return;
     }
+    if (form.enabled && (form.isTemplate || form.name.includes("模板"))) {
+      setError("模板不能直接啟用。請先複製成正式監控目標並移除「模板」字樣。");
+      setSaving(false);
+      return;
+    }
 
     const payload = {
       name: form.name,
@@ -126,9 +143,14 @@ export function TargetForm({
       timeoutMs: Number(form.timeoutMs || 30000),
       includeKeywords: splitKeywords(form.includeKeywords),
       excludeKeywords: splitKeywords(form.excludeKeywords),
+      eventKeywords: splitKeywords(form.eventKeywords),
+      dateKeywords: splitKeywords(form.dateKeywords),
+      venueKeywords: splitKeywords(form.venueKeywords),
       areaKeywords: splitKeywords(form.areaKeywords),
       areaBlacklist: splitKeywords(form.areaBlacklist),
       priceKeywords: splitKeywords(form.priceKeywords),
+      matchMode: form.matchMode,
+      notifyOn: form.notifyOn,
       notes: form.notes
     };
 
@@ -206,6 +228,9 @@ export function TargetForm({
 
       <div className="rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm font-semibold text-teal-900">
         <p>{preset.warning}</p>
+        <p className="mt-2 text-xs">
+          Parser：{preset.parserId}。Strict 模式會要求同一個可用票區符合你設定的票區與價格條件。
+        </p>
         <button type="button" className="btn btn-secondary mt-2" onClick={() => applyPreset()}>
           <Wand2 size={16} />
           套用平台預設
@@ -247,6 +272,43 @@ export function TargetForm({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="grid gap-1 text-sm font-bold">
+          比對模式
+          <select className="field" value={form.matchMode} onChange={(event) => update("matchMode", event.target.value as Target["matchMode"])}>
+            <option value="strict">嚴格：日期、場館、票區、價格都要符合</option>
+            <option value="normal">一般：票區或價格符合即可</option>
+            <option value="loose">寬鬆：任一可用票區都列為可能符合</option>
+          </select>
+        </label>
+        <label className="grid gap-1 text-sm font-bold">
+          通知門檻
+          <select className="field" value={form.notifyOn} onChange={(event) => update("notifyOn", event.target.value as Target["notifyOn"])}>
+            <option value="available_only">只在符合條件時通知</option>
+            <option value="available_and_possible">符合或可能符合都通知</option>
+            <option value="all">全部狀態都通知</option>
+          </select>
+          <span className="text-xs font-semibold text-slate-500">
+            建議使用「只在符合條件時通知」，避免收到不符合需求的有票提醒。
+          </span>
+        </label>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="grid gap-1 text-sm font-bold">
+          活動關鍵字
+          <textarea className="field min-h-16" value={form.eventKeywords} onChange={(event) => update("eventKeywords", event.target.value)} />
+        </label>
+        <label className="grid gap-1 text-sm font-bold">
+          日期關鍵字
+          <textarea className="field min-h-16" value={form.dateKeywords} onChange={(event) => update("dateKeywords", event.target.value)} placeholder="例如 2026/06/14" />
+        </label>
+        <label className="grid gap-1 text-sm font-bold">
+          場館關鍵字
+          <textarea className="field min-h-16" value={form.venueKeywords} onChange={(event) => update("venueKeywords", event.target.value)} placeholder="例如 新莊棒球場" />
+        </label>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="grid gap-1 text-sm font-bold">
           有票關鍵字
           <textarea className="field min-h-24" value={form.includeKeywords} onChange={(event) => update("includeKeywords", event.target.value)} />
         </label>
@@ -257,6 +319,9 @@ export function TargetForm({
         <label className="grid gap-1 text-sm font-bold">
           票區關鍵字
           <textarea className="field min-h-20" value={form.areaKeywords} onChange={(event) => update("areaKeywords", event.target.value)} />
+          <span className="text-xs font-semibold text-slate-500">
+            請填你真正想要的票區，例如 熱區、A9區、內野C區。若空白，任何可用票區都可能被視為 possible match。
+          </span>
         </label>
         <label className="grid gap-1 text-sm font-bold">
           排除票區
@@ -267,6 +332,9 @@ export function TargetForm({
       <label className="grid gap-1 text-sm font-bold">
         價格關鍵字
         <textarea className="field min-h-16" value={form.priceKeywords} onChange={(event) => update("priceKeywords", event.target.value)} />
+        <span className="text-xs font-semibold text-slate-500">
+          價格會精準比對，例如填 900 只會匹配票價 900，不會匹配 550 或 1900。
+        </span>
       </label>
       <label className="grid gap-1 text-sm font-bold">
         備註
