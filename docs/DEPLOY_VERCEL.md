@@ -1,8 +1,17 @@
 # Deploy Ticket Radar To Vercel
 
-## 1. Push To GitHub
+## B + C Plan: Vercel Hobby + External Scheduler
 
-Commit and push the repository to GitHub.
+This project uses two deployment layers:
+
+- B plan: Vercel Hobby runs the Dashboard and API. Built-in Vercel Cron is daily so deploys are not blocked by Hobby limits.
+- C plan: an external scheduler calls `/api/cron/check` every 5 minutes for near 5-minute polling.
+
+Vercel Hobby built-in Cron can run only daily. If `vercel.json` uses `*/5 * * * *`, Hobby deploys fail. Keep daily cron on Hobby.
+
+## 1. Push Main To GitHub
+
+Push the latest `main` branch to GitHub.
 
 ## 2. Import Project
 
@@ -13,29 +22,18 @@ Commit and push the repository to GitHub.
 
 ## 3. Add Environment Variables
 
-Required:
-
 ```bash
-POSTGRES_URL=postgres://...
-CRON_SECRET=use-a-long-random-secret
-CHECK_MODE=fetch
-MAX_TARGETS_PER_CRON=2
-```
-
-Optional notifications:
-
-```bash
+POSTGRES_URL=
+DATABASE_URL=
+CRON_SECRET=
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 DISCORD_WEBHOOK_URL=
-```
-
-Other tuning:
-
-```bash
 DEFAULT_CHECK_INTERVAL_SECONDS=180
 MIN_CHECK_INTERVAL_SECONDS=120
+MAX_TARGETS_PER_CRON=2
 MAX_CONCURRENT_CHECKS=1
+CHECK_MODE=fetch
 NAVIGATION_TIMEOUT_MS=30000
 ```
 
@@ -45,20 +43,78 @@ Use Vercel Postgres, Neon Postgres, or another hosted Postgres provider. `POSTGR
 
 Deploy from Vercel. The app builds as a standard Next.js App Router project.
 
+`vercel.json` is Hobby-safe:
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/check",
+      "schedule": "0 1 * * *"
+    }
+  ]
+}
+```
+
+This daily cron keeps the Vercel project deployable on Hobby. It is not intended to provide 5-minute monitoring by itself.
+
 ## 5. Initialize Database
 
 After creating the production Postgres database, initialize schema from a trusted local machine:
 
 ```bash
 POSTGRES_URL="postgres://..." npm run db:init
+```
+
+## 6. Seed Targets
+
+```bash
 POSTGRES_URL="postgres://..." npm run seed
 ```
 
-The app also defensively creates missing tables when API routes run, but explicit initialization is recommended.
+Seed includes enabled examples, disabled templates, and disabled discovery rules. Do not enable placeholder URLs.
 
-## 6. Cron
+## 7. Confirm Dashboard
 
-`vercel.json` configures:
+Open the production domain and confirm:
+
+- `/` dashboard loads
+- `/targets` shows targets
+- `/history` loads
+- `/settings` shows configured status without exposing secrets
+
+## 8. Manual Cron Test
+
+Header auth:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://YOUR_DOMAIN/api/cron/check
+```
+
+Query secret auth:
+
+```text
+https://YOUR_DOMAIN/api/cron/check?secret=YOUR_SECRET
+```
+
+Then open `/history` and confirm check runs were added.
+
+## 9. Configure External Scheduler
+
+Set an external scheduler to call `/api/cron/check` every 5 minutes. Supported options include:
+
+- cron-job.org
+- UptimeRobot
+- GitHub Actions schedule
+- Render cron job
+- Railway scheduled job
+- VPS cron
+
+See [EXTERNAL_SCHEDULER.md](EXTERNAL_SCHEDULER.md).
+
+## 10. If You Upgrade To Vercel Pro
+
+If you upgrade to Vercel Pro, you can change `vercel.json` back to 5-minute built-in Vercel Cron:
 
 ```json
 {
@@ -71,29 +127,15 @@ The app also defensively creates missing tables when API routes run, but explici
 }
 ```
 
-Vercel Cron triggers `/api/cron/check` every 5 minutes. Each invocation checks only due targets and checks at most `MAX_TARGETS_PER_CRON` targets. Target-level `check_interval_seconds` still applies, but the real minimum trigger granularity is limited by the cron schedule.
+Hobby plan should keep the daily schedule, or deploy will fail.
 
-This is cron polling, not a permanent background worker.
+## Production Fit
 
-## 7. Manual Cron Test
-
-```bash
-curl -H "Authorization: Bearer $CRON_SECRET" https://YOUR_DOMAIN/api/cron/check
-```
-
-Or:
-
-```text
-https://YOUR_DOMAIN/api/cron/check?secret=YOUR_SECRET
-```
-
-## 8. Production Fit
-
-The Vercel version is ideal for:
+The Vercel Hobby version is ideal for:
 
 - Dashboard
 - Manual checks
-- Safe low-frequency cron polling
+- API endpoint for external scheduler polling
 - Telegram and Discord alerts
 
-For higher reliability 24/7 worker needs, deploy a dedicated worker on Railway, Render, Fly.io, or a VPS.
+For stronger 24/7 worker reliability, deploy a dedicated worker on Railway, Render, Fly.io, or a VPS.

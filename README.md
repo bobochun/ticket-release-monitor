@@ -1,4 +1,4 @@
-# Ticket Radar / 票券釋票雷達
+# Ticket Radar / Ticket Release Radar
 
 Ticket Radar is a safe, legal, low-frequency ticket release monitoring MVP. It watches public ticket pages, records recent checks, and sends Telegram or Discord notifications when a page looks interesting or requires manual attention.
 
@@ -24,11 +24,39 @@ If a target appears to require CAPTCHA, queue handling, or login, the check stop
 - Mobile-friendly PWA-style UI
 - Targets with include, exclude, area, area blacklist, and price keywords
 - Manual check for one target
-- Vercel Cron route at `/api/cron/check`
+- Vercel-compatible `/api/cron/check` endpoint
 - Postgres production database with local SQLite fallback
 - Recent check history
 - Telegram and Discord notifications
 - Public-link discovery rules for manual candidate search
+
+## Deployment Strategy: Vercel Hobby + External Scheduler
+
+Vercel Hobby built-in Cron can run only daily. This project keeps `vercel.json` on a daily schedule so the Dashboard, API routes, and database connection can deploy successfully on Vercel Hobby.
+
+For near 5-minute polling, use an external scheduler to call `/api/cron/check` every 5 minutes.
+
+Recommended setup:
+
+1. Vercel: Dashboard, API routes, and database connection
+2. Neon Postgres or Vercel Postgres: production database
+3. cron-job.org, UptimeRobot, GitHub Actions schedule, Render, Railway, or VPS: 5-minute external trigger
+
+The cron endpoint is protected by `CRON_SECRET`. Keep `MAX_TARGETS_PER_CRON=1` or `2` so each Vercel function invocation stays short. Do not enable too many targets, and do not enable placeholder templates.
+
+Header auth:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://YOUR_DOMAIN/api/cron/check
+```
+
+Query secret auth:
+
+```text
+https://YOUR_DOMAIN/api/cron/check?secret=YOUR_SECRET
+```
+
+See [docs/EXTERNAL_SCHEDULER.md](docs/EXTERNAL_SCHEDULER.md) for setup examples.
 
 ## Supported Platforms
 
@@ -40,7 +68,7 @@ MVP uses a generic public-page detector for all platforms:
 
 `npm run seed` creates:
 
-- Enabled examples: 中信兄弟、富邦悍將 FamiLife、iBon
+- Enabled examples: CTBC Brothers, Fubon Guardians FamiLife, iBon
 - Disabled templates: CPBL teams and common concert/event platforms
 - Disabled discovery rules: CPBL and concert public-link candidate searches
 
@@ -63,15 +91,37 @@ Local default database is `./data/ticket-radar.sqlite` unless `DATABASE_URL` or 
 
 See [docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md).
 
-Vercel Cron runs every 5 minutes and calls `/api/cron/check`. Each invocation checks only due targets, capped by `MAX_TARGETS_PER_CRON`.
+`vercel.json` uses daily built-in Cron for Vercel Hobby compatibility:
 
-For more stable 24/7 or higher-volume workers, use Railway, Render, Fly.io, or a VPS. The Vercel version is best for dashboard plus safe low-frequency cron polling.
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/check",
+      "schedule": "0 1 * * *"
+    }
+  ]
+}
+```
+
+If you upgrade to Vercel Pro, you may change the schedule back to every 5 minutes:
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/check",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
+```
 
 ## Environment Variables
 
 ```bash
-POSTGRES_URL=
 DATABASE_URL=
+POSTGRES_URL=
 CRON_SECRET=
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
@@ -85,26 +135,6 @@ NAVIGATION_TIMEOUT_MS=30000
 ```
 
 `CHECK_MODE=fetch` is the production default. `CHECK_MODE=playwright` is local or Docker only.
-
-## Cron Test
-
-```bash
-curl -H "Authorization: Bearer $CRON_SECRET" https://YOUR_DOMAIN/api/cron/check
-```
-
-Or:
-
-```text
-https://YOUR_DOMAIN/api/cron/check?secret=YOUR_SECRET
-```
-
-## Telegram
-
-Create a bot with BotFather, set `TELEGRAM_BOT_TOKEN`, send a message to the bot, and set `TELEGRAM_CHAT_ID`.
-
-## Discord
-
-Create a channel webhook and set `DISCORD_WEBHOOK_URL`.
 
 ## How To Use
 
@@ -126,6 +156,6 @@ Ticket Radar is designed for safety, fairness, and compliance. Buying automation
 - Better platform-specific text extraction
 - User accounts and per-user settings
 - More notification channels
-- VPS/Railway/Render/Fly.io worker mode
+- Dedicated Render, Railway, Fly.io, or VPS worker mode
 - Richer candidate scoring
 - Alert deduplication and quiet hours

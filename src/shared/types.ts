@@ -123,9 +123,17 @@ export type DiscoveryRuleInput = {
 
 export type SchedulerSummary = {
   ok: boolean;
+  trigger?: "vercel-cron" | "external-scheduler" | "manual";
   checked: number;
+  skipped: number;
   dueTargets: number;
   maxTargetsPerCron: number;
   results: CheckResult[];
+  skippedTargets?: Array<{
+    id: number;
+    name: string;
+    url: string;
+    reason: string;
+  }>;
   timestamp: string;
 };
