@@ -19,6 +19,20 @@
 - 模擬真人行為規避網站防護
 - 使用多帳號、多 session、多 IP 規避限制
 
+## OCR 使用邊界
+
+本專案的 OCR 只允許用在公開售票頁上的票況圖片文字，例如「餘票」、「剩餘座位」、「熱區」或票區名稱。OCR 預設關閉，必須透過 `OCR_ENABLED=true` 才會啟用。
+
+OCR 不會用於：
+
+- 驗證碼圖片
+- CAPTCHA / reCAPTCHA / hCaptcha
+- Cloudflare Turnstile 或 challenge
+- queue / waiting room 繞過
+- 登入流程或購票流程
+
+系統會先做安全偵測；如果頁面出現驗證、排隊或登入要求，會直接停止該 target 本次檢查，不會進入 OCR。
+
 若偵測到 CAPTCHA、Cloudflare、Turnstile、hCaptcha、reCAPTCHA、bot check、queue、waiting room 或 login required，該 target 本次檢查會停止，並記錄安全狀態：
 
 - `BOT_CHECK`

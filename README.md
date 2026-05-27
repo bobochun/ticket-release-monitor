@@ -4,6 +4,18 @@
 
 這不是搶票機器人，也不是自動購票工具。購票仍需你自行開啟官方頁面手動完成。
 
+## 這次 OCR 升級做了什麼
+
+我有參考 `bouob/tickets_hunter` 的平台化票務偵測思路，但沒有移植它的搶票流程、登入、點擊、驗證碼 OCR 或 GPL 程式碼。Ticket Radar 新增的是安全版「公開票況圖片 OCR」：
+
+- 預設關閉，使用 `OCR_ENABLED=true` 才會啟用。
+- 只讀公開售票頁上少量圖片文字，例如 `餘票`、`剩餘座位`、`A1 熱區`。
+- 先偵測 CAPTCHA、Cloudflare、排隊與登入頁；命中就停止，不做 OCR。
+- 會跳過看起來像驗證碼、challenge、登入或安全驗證的圖片。
+- OCR 文字只會進入既有 detector，觸發通知後仍需人工購票。
+
+詳細設定請看 [docs/OCR.md](docs/OCR.md)。
+
 ## 安全限制
 
 本工具不會：
@@ -105,9 +117,18 @@ QUIET_HOURS_ENABLED=false
 QUIET_HOURS_START=23:30
 QUIET_HOURS_END=07:30
 QUIET_HOURS_TIMEZONE=Asia/Taipei
+OCR_ENABLED=false
+OCR_MODE=tesseract
+OCR_LANG=eng+chi_tra
+OCR_MAX_IMAGES_PER_CHECK=3
+OCR_MAX_IMAGE_BYTES=800000
+OCR_TIMEOUT_MS=12000
+OCR_ALLOW_CROSS_ORIGIN=true
+OCR_MIN_IMAGE_AREA=5000
 ```
 
 Production 請使用 `CHECK_MODE=fetch`。`CHECK_MODE=playwright` 只建議 local / Docker 使用。
+Vercel Hobby 若啟用 OCR，建議把 `MAX_TARGETS_PER_CRON=1`、`OCR_MAX_IMAGES_PER_CHECK=1`，避免單次 function 太久。
 
 ## 初始化資料庫與 seed
 
@@ -193,4 +214,5 @@ Vercel Hobby 內建 Cron 只能 daily。要每 5 分鐘請用外部 scheduler，
 - [外部 Scheduler](docs/EXTERNAL_SCHEDULER.md)
 - [Telegram 設定](docs/TELEGRAM_SETUP.md)
 - [Discord 設定](docs/DISCORD_SETUP.md)
+- [公開票況圖片 OCR](docs/OCR.md)
 - [安全政策](docs/SAFETY.md)

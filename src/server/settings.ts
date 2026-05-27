@@ -37,6 +37,13 @@ export function getConfiguredStatus() {
     quietHoursStart: process.env.QUIET_HOURS_START || "23:30",
     quietHoursEnd: process.env.QUIET_HOURS_END || "07:30",
     quietHoursTimezone: process.env.QUIET_HOURS_TIMEZONE || "Asia/Taipei",
+    ocrEnabled: (process.env.OCR_ENABLED || "false") === "true",
+    ocrMode: process.env.OCR_MODE || "tesseract",
+    ocrLang: process.env.OCR_LANG || "eng+chi_tra",
+    ocrMaxImagesPerCheck: getEnvNumber("OCR_MAX_IMAGES_PER_CHECK", 3),
+    ocrMaxImageBytes: getEnvNumber("OCR_MAX_IMAGE_BYTES", 800000),
+    ocrTimeoutMs: getEnvNumber("OCR_TIMEOUT_MS", 12000),
+    ocrAllowCrossOrigin: (process.env.OCR_ALLOW_CROSS_ORIGIN || "true") === "true",
     cronEndpointHint: "/api/cron/check?secret=****"
   };
 }

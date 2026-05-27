@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import type { CheckResult, Target } from "@/src/shared/types";
-import { detectFromText, errorResult } from "./detector";
+import { detectFromText, detectSafetyStatus, errorResult } from "./detector";
+import { extractImageMetadataText, extractPublicImageText } from "./ocr";
 import { getEnvNumber } from "./settings";
 
 const USER_AGENT =
@@ -11,6 +12,33 @@ function timeoutSignal(timeoutMs: number): AbortSignal {
   const controller = new AbortController();
   setTimeout(() => controller.abort(), timeoutMs);
   return controller.signal;
+}
+
+function extractVisibleText(html: string): string {
+  const $ = cheerio.load(html);
+  $("script, style, noscript, svg").remove();
+  const visibleText = $("body").text() || $.root().text();
+  const imageMetadataText = extractImageMetadataText(html);
+  return [visibleText, imageMetadataText].filter(Boolean).join("\n");
+}
+
+async function appendSafeOcrText(target: Target, html: string, text: string): Promise<string> {
+  if (detectSafetyStatus(text)) return text;
+
+  const ocr = await extractPublicImageText({
+    html,
+    pageUrl: target.url,
+    timeoutMs: target.timeoutMs,
+    userAgent: USER_AGENT
+  });
+
+  if (!ocr.text) return text;
+
+  return [
+    text,
+    "OCR 公開票況圖片文字如下。這不是驗證碼辨識，也不會繞過驗證或排隊。",
+    ocr.text
+  ].join("\n");
 }
 
 async function fetchText(target: Target): Promise<string> {
@@ -25,10 +53,9 @@ async function fetchText(target: Target): Promise<string> {
   });
 
   const html = await response.text();
-  const $ = cheerio.load(html);
-  $("script, style, noscript, svg").remove();
-  const visibleText = $("body").text() || $.root().text();
-  return `${response.status} ${response.statusText}\n${visibleText}`;
+  const visibleText = extractVisibleText(html);
+  const text = `${response.status} ${response.statusText}\n${visibleText}`;
+  return appendSafeOcrText(target, html, text);
 }
 
 async function playwrightText(target: Target): Promise<string> {
@@ -41,7 +68,12 @@ async function playwrightText(target: Target): Promise<string> {
       waitUntil: "domcontentloaded",
       timeout: target.timeoutMs || getEnvNumber("NAVIGATION_TIMEOUT_MS", 30000)
     });
-    return await page.locator("body").innerText({ timeout: 10000 }).catch(() => "");
+    const [bodyText, html] = await Promise.all([
+      page.locator("body").innerText({ timeout: 10000 }).catch(() => ""),
+      page.content().catch(() => "")
+    ]);
+    const text = [bodyText, extractImageMetadataText(html)].filter(Boolean).join("\n");
+    return html ? appendSafeOcrText(target, html, text) : text;
   } finally {
     await page.close().catch(() => undefined);
     await browser.close().catch(() => undefined);

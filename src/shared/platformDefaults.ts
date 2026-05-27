@@ -24,8 +24,33 @@ export type QuickTemplate = {
   description: string;
 };
 
-export const CPBL_INCLUDE = ["立即購票", "我要購票", "可購買", "剩餘", "熱區", "空位", "加入購物車"];
-export const CPBL_EXCLUDE = ["已售完", "暫無票券", "尚未開賣", "截止販售", "銷售一空", "已截止"];
+export const CPBL_INCLUDE = [
+  "立即購票",
+  "我要購票",
+  "可購買",
+  "可售",
+  "剩餘",
+  "剩餘座位",
+  "餘票",
+  "尚有座位",
+  "熱區",
+  "空位",
+  "加入購物車"
+];
+export const CPBL_EXCLUDE = [
+  "已售完",
+  "售完",
+  "暫無票券",
+  "尚未開賣",
+  "截止販售",
+  "銷售一空",
+  "已截止",
+  "剩餘 0",
+  "剩餘0",
+  "0 張",
+  "0張",
+  "無剩餘"
+];
 export const CPBL_AREAS = ["熱區", "A1", "A2", "B1", "B2"];
 export const DEFAULT_AREA_BLACKLIST = ["身障", "視線不良"];
 
@@ -37,9 +62,14 @@ export const EVENT_INCLUDE = [
   "Buy Tickets",
   "Register",
   "Available",
+  "Tickets Available",
   "可購買",
   "可訂購",
+  "可售",
   "剩餘",
+  "剩餘票券",
+  "餘票",
+  "尚有票券",
   "空位",
   "選擇票區",
   "下一步",
@@ -58,7 +88,13 @@ export const EVENT_EXCLUDE = [
   "已截止",
   "銷售一空",
   "Not Available",
-  "Unavailable"
+  "Unavailable",
+  "No tickets available",
+  "剩餘 0",
+  "剩餘0",
+  "0 張",
+  "0張",
+  "無剩餘"
 ];
 
 const generic: Omit<PlatformDefault, "id" | "labelZh" | "labelEn" | "category" | "hosts" | "defaultUrlPlaceholder"> = {

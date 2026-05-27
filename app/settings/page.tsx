@@ -19,6 +19,13 @@ type SettingsState = {
   quietHoursStart: string;
   quietHoursEnd: string;
   quietHoursTimezone: string;
+  ocrEnabled: boolean;
+  ocrMode: string;
+  ocrLang: string;
+  ocrMaxImagesPerCheck: number;
+  ocrMaxImageBytes: number;
+  ocrTimeoutMs: number;
+  ocrAllowCrossOrigin: boolean;
   cronEndpointHint: string;
 };
 
@@ -121,6 +128,40 @@ export default function SettingsPage() {
           <li>2. GitHub Actions：設定 `TICKET_RADAR_CRON_SECRET` 與 `TICKET_RADAR_CRON_URL` secrets。</li>
           <li>3. UptimeRobot：HTTP(s) monitor，每 5 分鐘；非 200 可能被視為 down。</li>
         </ol>
+      </section>
+
+      <section className="surface mt-4 p-4">
+        <h2 className="text-lg font-black">公開票況圖片 OCR</h2>
+        <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">
+          OCR 只用來輔助辨識公開售票頁上的餘票圖片文字。系統會先偵測 CAPTCHA、Cloudflare、排隊與登入頁；
+          一旦命中就停止檢查，不會辨識驗證碼、不會解 challenge，也不會進入購票流程。
+        </p>
+        <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <dt className="font-bold text-slate-500">OCR 狀態</dt>
+            <dd className="font-black">{settings?.ocrEnabled ? "已啟用" : "未啟用"}</dd>
+          </div>
+          <div>
+            <dt className="font-bold text-slate-500">OCR 模式</dt>
+            <dd className="font-black">{settings?.ocrMode ?? "tesseract"}</dd>
+          </div>
+          <div>
+            <dt className="font-bold text-slate-500">語言</dt>
+            <dd className="font-black">{settings?.ocrLang ?? "eng+chi_tra"}</dd>
+          </div>
+          <div>
+            <dt className="font-bold text-slate-500">每次最多圖片</dt>
+            <dd className="font-black">{settings?.ocrMaxImagesPerCheck ?? 3}</dd>
+          </div>
+          <div>
+            <dt className="font-bold text-slate-500">單張大小上限</dt>
+            <dd className="font-black">{settings?.ocrMaxImageBytes ?? 800000} bytes</dd>
+          </div>
+          <div>
+            <dt className="font-bold text-slate-500">逾時</dt>
+            <dd className="font-black">{settings?.ocrTimeoutMs ?? 12000} ms</dd>
+          </div>
+        </dl>
       </section>
 
       <section className="surface mt-4 p-4">

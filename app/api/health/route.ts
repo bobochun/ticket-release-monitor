@@ -18,6 +18,8 @@ export async function GET() {
     discordConfigured: settings.discordConfigured,
     cronSecretConfigured: settings.cronSecretConfigured,
     checkMode: settings.checkMode,
+    ocrEnabled: settings.ocrEnabled,
+    ocrMode: settings.ocrMode,
     timestamp: new Date().toISOString()
   });
 }
