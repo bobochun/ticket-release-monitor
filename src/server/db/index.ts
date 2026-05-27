@@ -5,7 +5,17 @@ let clientPromise: Promise<DatabaseClient> | null = null;
 let initializedPromise: Promise<void> | null = null;
 
 function databaseUrl(): string | undefined {
-  return process.env.POSTGRES_URL || process.env.DATABASE_URL;
+  const postgresUrl = process.env.POSTGRES_URL;
+  if (postgresUrl?.startsWith("postgres://") || postgresUrl?.startsWith("postgresql://")) {
+    return postgresUrl;
+  }
+
+  const databaseUrl = process.env.DATABASE_URL;
+  if (databaseUrl?.startsWith("postgres://") || databaseUrl?.startsWith("postgresql://")) {
+    return databaseUrl;
+  }
+
+  return undefined;
 }
 
 function usePostgres(): boolean {
@@ -87,6 +97,8 @@ async function migrateCheckRunsColumns(db: DatabaseClient): Promise<void> {
         `ALTER TABLE check_runs ADD COLUMN IF NOT EXISTS ${name} ${type}${defaultValue ? ` DEFAULT ${defaultValue}` : ""}`
       );
     }
+    await backfillCheckRunsMigrationDefaults(db);
+    await db.execute("CREATE INDEX IF NOT EXISTS idx_runs_source ON check_runs (source)");
     return;
   }
 
@@ -99,4 +111,13 @@ async function migrateCheckRunsColumns(db: DatabaseClient): Promise<void> {
       );
     }
   }
+  await backfillCheckRunsMigrationDefaults(db);
+  await db.execute("CREATE INDEX IF NOT EXISTS idx_runs_source ON check_runs (source)");
+}
+
+async function backfillCheckRunsMigrationDefaults(db: DatabaseClient): Promise<void> {
+  await db.execute("UPDATE check_runs SET parsed_areas_json = '[]' WHERE parsed_areas_json IS NULL");
+  await db.execute("UPDATE check_runs SET available_area_count = 0 WHERE available_area_count IS NULL");
+  await db.execute("UPDATE check_runs SET sold_out_area_count = 0 WHERE sold_out_area_count IS NULL");
+  await db.execute("UPDATE check_runs SET source = 'auto_fetch' WHERE source IS NULL");
 }

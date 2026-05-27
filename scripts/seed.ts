@@ -1,8 +1,12 @@
-import "dotenv/config";
 import { initDb } from "../src/server/db/index";
 import { createDiscoveryRule, listDiscoveryRules } from "../src/server/discovery";
 import { createTarget, listTargets } from "../src/server/targets";
 import type { DiscoveryRuleInput, TargetInput } from "../src/shared/types";
+import { getDbEnvInfo, loadLocalEnvFiles, printEnvLoadSummary } from "./db-env";
+
+const loadedFiles = loadLocalEnvFiles();
+printEnvLoadSummary(loadedFiles);
+console.log(`Database: ${getDbEnvInfo().label}`);
 
 const cpblInclude = ["立即購票", "我要購票", "可購買", "剩餘", "熱區", "空位"];
 const cpblExclude = ["已售完", "暫無票券", "尚未開賣", "截止販售"];

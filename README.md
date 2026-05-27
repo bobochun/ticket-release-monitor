@@ -140,7 +140,7 @@ QUIET_HOURS_TIMEZONE=Asia/Taipei
 OCR_ENABLED=false
 OCR_MODE=tesseract
 OCR_LANG=eng+chi_tra
-OCR_MAX_IMAGES_PER_CHECK=3
+OCR_MAX_IMAGES_PER_CHECK=1
 OCR_MAX_IMAGE_BYTES=800000
 OCR_TIMEOUT_MS=12000
 OCR_ALLOW_CROSS_ORIGIN=true
@@ -164,9 +164,14 @@ npm run dev
 Production Postgres：
 
 ```bash
-POSTGRES_URL="postgres://..." npm run db:init
-POSTGRES_URL="postgres://..." npm run seed
+npx vercel env pull .env.local --environment=production
+npm run db:diagnose
+npm run db:init
+npm run db:diagnose
+npm run seed
 ```
+
+`db:init` 會明確先讀 `.env.local`、再讀 `.env`，並顯示目前使用 `postgres via POSTGRES_URL`、`postgres via DATABASE_URL` 或 `sqlite fallback`。如果看到 SQLite fallback，代表沒有連到 Neon/Postgres，production DB 沒有被初始化。
 
 ## Telegram 設定
 

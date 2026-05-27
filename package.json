@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "db:init": "tsx scripts/db-init.ts",
+    "db:diagnose": "tsx scripts/db-diagnose.ts",
     "seed": "tsx scripts/seed.ts",
     "check:local": "tsx scripts/check-local.ts",
     "test": "vitest run",

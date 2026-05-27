@@ -67,7 +67,7 @@ QUIET_HOURS_TIMEZONE=Asia/Taipei
 OCR_ENABLED=false
 OCR_MODE=tesseract
 OCR_LANG=eng+chi_tra
-OCR_MAX_IMAGES_PER_CHECK=3
+OCR_MAX_IMAGES_PER_CHECK=1
 OCR_MAX_IMAGE_BYTES=800000
 OCR_TIMEOUT_MS=12000
 OCR_ALLOW_CROSS_ORIGIN=true
@@ -87,13 +87,18 @@ Vercel Hobby 上 OCR 建議先保持 `OCR_ENABLED=false`。若要啟用，請把
 從可信任的本機執行：
 
 ```bash
-POSTGRES_URL="postgres://..." npm run db:init
+npx vercel env pull .env.local --environment=production
+npm run db:diagnose
+npm run db:init
+npm run db:diagnose
 ```
+
+`db:init` 會明確讀取 `.env.local`、再讀 `.env`，不覆蓋已存在的環境變數。請確認 `db:diagnose` 顯示 `postgres via POSTGRES_URL` 或 `postgres via DATABASE_URL`。如果看到 `sqlite fallback`，代表目前沒有連到 Neon/Postgres，production DB 尚未初始化。
 
 ## 7. Seed 預設資料
 
 ```bash
-POSTGRES_URL="postgres://..." npm run seed
+npm run seed
 ```
 
 Seed 會建立 enabled examples、disabled templates、discovery rules。不要直接啟用 placeholder URL。

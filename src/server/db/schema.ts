@@ -111,7 +111,6 @@ function schema(
     )`,
     "CREATE INDEX IF NOT EXISTS idx_targets_due ON targets (enabled, is_template, next_check_at)",
     "CREATE INDEX IF NOT EXISTS idx_runs_checked_at ON check_runs (checked_at)",
-    "CREATE INDEX IF NOT EXISTS idx_runs_source ON check_runs (source)",
     "CREATE INDEX IF NOT EXISTS idx_candidates_rule ON discovered_candidates (rule_id)"
   ];
 }
