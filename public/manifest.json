@@ -1,0 +1,17 @@
+{
+  "name": "Ticket Radar",
+  "short_name": "Radar",
+  "description": "Safe low-frequency ticket release monitoring dashboard.",
+  "display": "standalone",
+  "start_url": "/",
+  "theme_color": "#0f766e",
+  "background_color": "#f8fafc",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

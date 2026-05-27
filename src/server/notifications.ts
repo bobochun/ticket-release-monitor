@@ -1,49 +1,86 @@
-import { db } from "./db.js";
-import type { CheckResult } from "./types.js";
+import type { CheckResult } from "@/src/shared/types";
+import { ensureDb, getDb } from "./db";
 
-function alertBody(result: CheckResult): string {
+export const NOTIFY_STATUSES = [
+  "AVAILABLE",
+  "POSSIBLE_MATCH",
+  "BOT_CHECK",
+  "QUEUE_DETECTED",
+  "LOGIN_REQUIRED",
+  "ERROR"
+] as const;
+
+export function shouldNotify(result: CheckResult): boolean {
+  return NOTIFY_STATUSES.includes(result.status as (typeof NOTIFY_STATUSES)[number]);
+}
+
+export function alertBody(result: CheckResult): string {
+  const matched = [
+    ...result.matchedKeywords,
+    ...result.matchedAreas,
+    ...result.matchedPrices
+  ].join(", ");
+
   return [
-    `🎫 Ticket Radar Alert`,
+    "🎫 Ticket Radar Alert",
     `Target: ${result.targetName}`,
     `Status: ${result.status}`,
-    `Matched: ${[...result.matchedKeywords, ...result.matchedAreas, ...result.matchedPrices].join(", ") || "none"}`,
-    `Checked: ${result.checkedAt}`,
+    `Matched: ${matched || "none"}`,
     `URL: ${result.url}`,
+    `Checked: ${result.checkedAt}`,
     "",
     "Manual purchase required. No login, seat selection, checkout, or payment automation was performed."
   ].join("\n");
 }
 
-function shouldNotify(result: CheckResult): boolean {
-  return ["AVAILABLE", "POSSIBLE_MATCH", "BOT_CHECK", "QUEUE_DETECTED", "LOGIN_REQUIRED", "ERROR"].includes(result.status);
+async function saveNotification(
+  channel: string,
+  result: CheckResult,
+  status: string,
+  error?: string
+): Promise<void> {
+  await ensureDb();
+  const db = await getDb();
+  await db.execute(
+    `INSERT INTO notification_events (type, channel, status, title, body, url, error)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [
+      "check_result",
+      channel,
+      status,
+      `${result.status}: ${result.targetName}`,
+      alertBody(result),
+      result.url,
+      error ?? null
+    ]
+  );
 }
 
-function saveNotification(channel: string, result: CheckResult, status: string, error?: string): void {
-  db.prepare(`
-    INSERT INTO notification_events (type, channel, status, title, body, url, error)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run("check_result", channel, status, `${result.status}: ${result.targetName}`, alertBody(result), result.url, error ?? null);
-}
-
-async function sendTelegram(result: CheckResult): Promise<void> {
+async function sendTelegram(result: CheckResult): Promise<boolean> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const chatId = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chatId) return;
+  if (!token || !chatId) return false;
 
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text: alertBody(result), disable_web_page_preview: false })
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: alertBody(result),
+      disable_web_page_preview: false
+    })
   });
 
   if (!response.ok) {
     throw new Error(`Telegram failed: ${response.status} ${await response.text().catch(() => "")}`);
   }
+
+  return true;
 }
 
-async function sendDiscord(result: CheckResult): Promise<void> {
+async function sendDiscord(result: CheckResult): Promise<boolean> {
   const webhook = process.env.DISCORD_WEBHOOK_URL;
-  if (!webhook) return;
+  if (!webhook) return false;
 
   const response = await fetch(webhook, {
     method: "POST",
@@ -54,6 +91,8 @@ async function sendDiscord(result: CheckResult): Promise<void> {
   if (!response.ok) {
     throw new Error(`Discord failed: ${response.status} ${await response.text().catch(() => "")}`);
   }
+
+  return true;
 }
 
 export async function notifyCheckResult(result: CheckResult): Promise<void> {
@@ -64,10 +103,15 @@ export async function notifyCheckResult(result: CheckResult): Promise<void> {
     ["discord", sendDiscord]
   ] as const) {
     try {
-      await sender(result);
-      saveNotification(channel, result, "sent");
+      const sent = await sender(result);
+      await saveNotification(channel, result, sent ? "sent" : "skipped");
     } catch (error) {
-      saveNotification(channel, result, "error", error instanceof Error ? error.message : String(error));
+      await saveNotification(
+        channel,
+        result,
+        "error",
+        error instanceof Error ? error.message : String(error)
+      );
     }
   }
 
@@ -75,8 +119,9 @@ export async function notifyCheckResult(result: CheckResult): Promise<void> {
 }
 
 export async function sendTestNotification(): Promise<void> {
-  const result: CheckResult = {
-    targetName: "Test Notification",
+  await notifyCheckResult({
+    targetId: null,
+    targetName: "Ticket Radar Test",
     url: "https://example.com",
     status: "POSSIBLE_MATCH",
     message: "This is a Ticket Radar test notification.",
@@ -85,7 +130,7 @@ export async function sendTestNotification(): Promise<void> {
     matchedPrices: [],
     botCheckDetected: false,
     checkedAt: new Date().toISOString(),
-    durationMs: 0
-  };
-  await notifyCheckResult(result);
+    durationMs: 0,
+    error: null
+  });
 }

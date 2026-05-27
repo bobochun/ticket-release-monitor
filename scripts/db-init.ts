@@ -1,6 +1,5 @@
 import "dotenv/config";
-import { initDb, seedDb } from "../src/server/db.js";
+import { initDb } from "../src/server/db/index";
 
-initDb();
-seedDb();
-console.log("Ticket Radar database initialized.");
+await initDb();
+console.log("Ticket Radar database schema initialized.");

@@ -1,0 +1,40 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Activity, History, Radar, Search, Settings } from "lucide-react";
+
+const items = [
+  { href: "/", label: "Dashboard", icon: Radar },
+  { href: "/targets", label: "Targets", icon: Activity },
+  { href: "/history", label: "History", icon: History },
+  { href: "/discovery", label: "Discovery", icon: Search },
+  { href: "/settings", label: "Settings", icon: Settings }
+];
+
+export function BottomNav() {
+  const pathname = usePathname();
+
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/96 backdrop-blur">
+      <div className="mx-auto grid max-w-3xl grid-cols-5">
+        {items.map(({ href, label, icon: Icon }) => {
+          const active = pathname === href;
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={`flex min-h-16 flex-col items-center justify-center gap-1 text-[11px] font-bold ${
+                active ? "text-teal-700" : "text-slate-500"
+              }`}
+              title={label}
+            >
+              <Icon aria-hidden size={21} />
+              <span>{label}</span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}

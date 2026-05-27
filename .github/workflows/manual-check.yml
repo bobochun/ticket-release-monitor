@@ -1,10 +1,11 @@
-name: Manual Ticket Check
+name: Ticket Radar Validation
 
 on:
   workflow_dispatch:
+  pull_request:
 
 jobs:
-  check:
+  validate:
     runs-on: ubuntu-latest
 
     steps:
@@ -14,24 +15,29 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
+          cache: npm
 
       - name: Install dependencies
         run: npm install
 
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Prepare config
-        run: |
-          if [ ! -f config/targets.yml ]; then
-            cp config/targets.example.yml config/targets.yml
-          fi
-
-      - name: Run one-time check
-        run: npm run check
+      - name: Initialize local database
+        run: npm run db:init
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          BROWSER_NAME: chromium
-          NAVIGATION_TIMEOUT_MS: 30000
+          CHECK_MODE: fetch
+
+      - name: Seed examples
+        run: npm run seed
+        env:
+          CHECK_MODE: fetch
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+        env:
+          CHECK_MODE: fetch

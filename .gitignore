@@ -1,5 +1,6 @@
 node_modules
 dist
+.next
 .env
 .env.local
 config/targets.yml
@@ -8,3 +9,7 @@ test-results
 coverage
 *.log
 .DS_Store
+tsconfig.tsbuildinfo
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
