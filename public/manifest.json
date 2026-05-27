@@ -1,7 +1,7 @@
 {
-  "name": "Ticket Radar",
-  "short_name": "Radar",
-  "description": "Safe low-frequency ticket release monitoring dashboard.",
+  "name": "票券釋票雷達",
+  "short_name": "釋票雷達",
+  "description": "低頻率監控公開售票頁，有疑似釋票就通知你。",
   "display": "standalone",
   "start_url": "/",
   "theme_color": "#0f766e",

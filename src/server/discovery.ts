@@ -4,6 +4,7 @@ import type { DiscoveredCandidate, DiscoveryRule, DiscoveryRuleInput } from "@/s
 import { boolFromDb, ensureDb, getDb, jsonParseArray, jsonStringify } from "./db";
 import { createTarget } from "./targets";
 import { keywordHits } from "./detector";
+import { AppError } from "./apiErrors";
 
 const discoveryRuleSchema = z.object({
   name: z.string().min(1),
@@ -157,7 +158,7 @@ function absoluteUrl(href: string, sourceUrl: string): string | null {
 
 export async function runDiscoveryRule(id: number): Promise<DiscoveredCandidate[]> {
   const rule = await getDiscoveryRule(id);
-  if (!rule) throw new Error("Discovery rule not found");
+  if (!rule) throw new AppError("TARGET_NOT_FOUND", "找不到候選搜尋規則。", 404);
 
   const db = await getDb();
   const found = new Map<string, Omit<DiscoveredCandidate, "id" | "discoveredAt" | "addedToTargets">>();
@@ -240,7 +241,7 @@ export async function addCandidateAsTarget(id: number) {
     "SELECT * FROM discovered_candidates WHERE id = $1",
     [id]
   );
-  if (!candidateRow) throw new Error("Candidate not found");
+  if (!candidateRow) throw new AppError("TARGET_NOT_FOUND", "找不到候選連結。", 404);
   const candidate = mapCandidate(candidateRow);
 
   const target = await createTarget({

@@ -1,97 +1,57 @@
-# Ticket Radar / Ticket Release Radar
+# 票券釋票雷達 / Ticket Radar
 
-Ticket Radar is a safe, legal, low-frequency ticket release monitoring MVP. It watches public ticket pages, records recent checks, and sends Telegram or Discord notifications when a page looks interesting or requires manual attention.
+票券釋票雷達是一個安全、低頻率、通知型的公開售票頁監控系統。它會檢查你設定的官方售票頁，若偵測到疑似釋票、排隊、驗證或錯誤，就寫入紀錄並通知 Telegram / Discord。
 
-It is not a ticket-buying bot. Manual purchase is always required.
+這不是搶票機器人，也不是自動購票工具。購票仍需你自行開啟官方頁面手動完成。
 
-## Safety Limits
+## 安全限制
 
-Ticket Radar does not:
+本工具不會：
 
-- login
-- select seats
-- add tickets to cart
-- submit orders
-- pay
-- bypass CAPTCHA, reCAPTCHA, hCaptcha, Turnstile, Cloudflare, queues, or waiting rooms
-- use stealth browser patches, proxy rotation, CAPTCHA solvers, OCR, multi-account, multi-IP, or high-frequency refresh behavior
+- 自動登入
+- 自動選位
+- 自動加入購物車
+- 自動送出訂單
+- 自動付款
+- 繞過 CAPTCHA、reCAPTCHA、hCaptcha、Cloudflare Turnstile
+- 繞過 queue / waiting room
+- 使用 stealth browser patch、proxy rotation、OCR、第三方 CAPTCHA solver
+- 高頻刷新或模擬真人行為規避網站防護
 
-If a target appears to require CAPTCHA, queue handling, or login, the check stops and records `BOT_CHECK`, `QUEUE_DETECTED`, or `LOGIN_REQUIRED`.
+若偵測到驗證、排隊或登入需求，會停止該 target 本次檢查，記錄 `BOT_CHECK` / `QUEUE_DETECTED` / `LOGIN_REQUIRED`，並通知人工處理。
 
-## Features
+## 如何使用
 
-- Next.js App Router dashboard
-- Mobile-friendly PWA-style UI
-- Targets with include, exclude, area, area blacklist, and price keywords
-- Manual check for one target
-- Vercel-compatible `/api/cron/check` endpoint
-- Postgres production database with local SQLite fallback
-- Recent check history
-- Telegram and Discord notifications
-- Public-link discovery rules for manual candidate search
+1. 到 `/targets` 新增監控目標。
+2. 選平台或快速模板。
+3. 貼上實際官方售票頁 URL。
+4. 調整有票關鍵字、排除關鍵字、票區與價格。
+5. 先按「立即檢查」確認結果。
+6. 啟用 target。
+7. 設定外部 scheduler 每 5 分鐘呼叫 `/api/cron/check`。
+8. 到 `/settings` 測試 Telegram / Discord 通知。
 
-## Deployment Strategy: Vercel Hobby + External Scheduler
+不要啟用 `YOUR_EVENT_URL`、`YOUR_EVENT_ID` 或 `example.com` 這類 placeholder URL。
 
-Vercel Hobby built-in Cron can run only daily. This project keeps `vercel.json` on a daily schedule so the Dashboard, API routes, and database connection can deploy successfully on Vercel Hobby.
+## 平台預設與快速模板
 
-For near 5-minute polling, use an external scheduler to call `/api/cron/check` every 5 minutes.
+`/targets` 提供平台預設與快速建立：
 
-Recommended setup:
+- 中信兄弟熱區模板
+- 富邦悍將熱區模板
+- TixCraft / 拓元演唱會模板
+- KKTIX 活動模板
+- iBon 售票模板
+- TicketPlus 遠大售票模板
+- 年代售票模板
+- 寬宏 KHAM 模板
+- FamiTicket 模板
 
-1. Vercel: Dashboard, API routes, and database connection
-2. Neon Postgres or Vercel Postgres: production database
-3. cron-job.org, UptimeRobot, GitHub Actions schedule, Render, Railway, or VPS: 5-minute external trigger
+平台預設會帶入 include / exclude / area / blacklist / notes。平台名稱只代表分類與預設，真正監控仍需要實際官方售票頁 URL。
 
-The cron endpoint is protected by `CRON_SECRET`. Keep `MAX_TARGETS_PER_CRON=1` or `2` so each Vercel function invocation stays short. Do not enable too many targets, and do not enable placeholder templates.
+## Vercel Hobby + 外部 Scheduler
 
-Header auth:
-
-```bash
-curl -H "Authorization: Bearer $CRON_SECRET" https://YOUR_DOMAIN/api/cron/check
-```
-
-Query secret auth:
-
-```text
-https://YOUR_DOMAIN/api/cron/check?secret=YOUR_SECRET
-```
-
-See [docs/EXTERNAL_SCHEDULER.md](docs/EXTERNAL_SCHEDULER.md) for setup examples.
-
-## Supported Platforms
-
-MVP uses a generic public-page detector for all platforms:
-
-`generic`, `tixcraft`, `teamear`, `ticketmaster`, `indievox`, `kktix`, `ticketplus`, `ibon`, `era_ticket`, `kham`, `cityline`, `hkticketing`, `famiticket`, `fansi_go`, `funone`, `cpbl_fubon_guardians`, `cpbl_ctbc_brothers`, `cpbl_unilions`, `cpbl_rakuten_monkeys`, `cpbl_weichuan_dragons`, `cpbl_tsg_hawks`.
-
-## Seed Data
-
-`npm run seed` creates:
-
-- Enabled examples: CTBC Brothers, Fubon Guardians FamiLife, iBon
-- Disabled templates: CPBL teams and common concert/event platforms
-- Disabled discovery rules: CPBL and concert public-link candidate searches
-
-Do not enable placeholder URLs. Replace templates with real official event URLs first.
-
-## Local Development
-
-```bash
-npm install
-npm run db:init
-npm run seed
-npm run dev
-```
-
-Open `http://localhost:3000`.
-
-Local default database is `./data/ticket-radar.sqlite` unless `DATABASE_URL` or `POSTGRES_URL` points to Postgres.
-
-## Vercel Deployment
-
-See [docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md).
-
-`vercel.json` uses daily built-in Cron for Vercel Hobby compatibility:
+Vercel Hobby 內建 Cron 只能 daily，因此本專案的 `vercel.json` 保持：
 
 ```json
 {
@@ -104,20 +64,27 @@ See [docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md).
 }
 ```
 
-If you upgrade to Vercel Pro, you may change the schedule back to every 5 minutes:
+若要每 5 分鐘檢查，使用外部 scheduler 呼叫：
 
-```json
-{
-  "crons": [
-    {
-      "path": "/api/cron/check",
-      "schedule": "*/5 * * * *"
-    }
-  ]
-}
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://YOUR_DOMAIN/api/cron/check
 ```
 
-## Environment Variables
+或：
+
+```text
+https://YOUR_DOMAIN/api/cron/check?secret=YOUR_SECRET
+```
+
+推薦組合：
+
+1. Vercel Hobby：Dashboard + API
+2. Neon / Vercel Postgres：資料庫
+3. cron-job.org / UptimeRobot / GitHub Actions：每 5 分鐘觸發
+
+請將 `MAX_TARGETS_PER_CRON` 設為 `1` 或 `2`，避免單次 function 執行太久。
+
+## 環境變數
 
 ```bash
 DATABASE_URL=
@@ -132,30 +99,98 @@ MAX_TARGETS_PER_CRON=2
 MAX_CONCURRENT_CHECKS=1
 CHECK_MODE=fetch
 NAVIGATION_TIMEOUT_MS=30000
+NOTIFICATION_DEDUPE_MINUTES=30
+ERROR_DEDUPE_MINUTES=15
+QUIET_HOURS_ENABLED=false
+QUIET_HOURS_START=23:30
+QUIET_HOURS_END=07:30
+QUIET_HOURS_TIMEZONE=Asia/Taipei
 ```
 
-`CHECK_MODE=fetch` is the production default. `CHECK_MODE=playwright` is local or Docker only.
+Production 請使用 `CHECK_MODE=fetch`。`CHECK_MODE=playwright` 只建議 local / Docker 使用。
 
-## How To Use
+## 初始化資料庫與 seed
 
-1. Go to `/targets`.
-2. Add or edit an official ticket page.
-3. Keep intervals low-frequency. Values below `MIN_CHECK_INTERVAL_SECONDS` are corrected.
-4. Click `Check` for a manual check.
-5. Review `/history` for recent results.
-6. Use `/settings` to test notifications.
+本機 SQLite：
 
-Use discovery manually from `/discovery`; it only reads public links from seed pages and adds candidates as disabled targets for review.
+```bash
+npm install
+npm run db:init
+npm run seed
+npm run dev
+```
 
-## Why Not Build A Buying Bot?
+Production Postgres：
 
-Ticket Radar is designed for safety, fairness, and compliance. Buying automation can violate ticketing site terms, harm other fans, and trigger bot defenses. This app only notifies you when manual review may be useful.
+```bash
+POSTGRES_URL="postgres://..." npm run db:init
+POSTGRES_URL="postgres://..." npm run seed
+```
 
-## Roadmap
+## Telegram 設定
 
-- Better platform-specific text extraction
-- User accounts and per-user settings
-- More notification channels
-- Dedicated Render, Railway, Fly.io, or VPS worker mode
-- Richer candidate scoring
-- Alert deduplication and quiet hours
+請看 [docs/TELEGRAM_SETUP.md](docs/TELEGRAM_SETUP.md)。
+
+簡要流程：
+
+1. 用 BotFather 建 bot。
+2. 取得 `TELEGRAM_BOT_TOKEN`。
+3. 取得 `TELEGRAM_CHAT_ID`。
+4. 加到 Vercel env。
+5. Redeploy。
+6. 到 `/settings` 按「測試 Telegram」。
+
+## Discord 設定
+
+請看 [docs/DISCORD_SETUP.md](docs/DISCORD_SETUP.md)。
+
+簡要流程：
+
+1. 到 Discord channel 的 Integrations。
+2. 建立 Webhook。
+3. 複製 webhook URL。
+4. 加到 Vercel env `DISCORD_WEBHOOK_URL`。
+5. Redeploy。
+6. 到 `/settings` 按「測試 Discord」。
+
+## 外部 Scheduler
+
+請看 [docs/EXTERNAL_SCHEDULER.md](docs/EXTERNAL_SCHEDULER.md)。
+
+常用方式：
+
+- cron-job.org：每 5 分鐘 GET `/api/cron/check?secret=...`
+- UptimeRobot：HTTP(s) monitor，每 5 分鐘
+- GitHub Actions schedule：使用 repo secrets 呼叫 endpoint
+- Render / Railway / VPS：排程執行 curl
+
+## 通知去重
+
+預設規則：
+
+- 同 target + 同 status + 同命中關鍵字 / 票區 / 價格，30 分鐘內不重複通知。
+- `ERROR` 預設 15 分鐘內不重複通知。
+- 若命中內容改變，會再次通知。
+- 被去重的通知仍會寫入 `notification_events`，狀態為 `deduped`。
+
+## 常見問題
+
+### 為什麼 Vercel Cron 不是每 5 分鐘？
+
+Vercel Hobby 內建 Cron 只能 daily。要每 5 分鐘請用外部 scheduler，或升級 Vercel Pro 後把 `vercel.json` 改回 `*/5 * * * *`。
+
+### 可以保證買到票嗎？
+
+不能。本工具只提供通知，不能增加庫存，也不會自動購票。
+
+### 可以繞過驗證或排隊嗎？
+
+不行。偵測到驗證、排隊或登入需求會停止檢查並通知人工處理。
+
+## 文件
+
+- [Vercel 部署](docs/DEPLOY_VERCEL.md)
+- [外部 Scheduler](docs/EXTERNAL_SCHEDULER.md)
+- [Telegram 設定](docs/TELEGRAM_SETUP.md)
+- [Discord 設定](docs/DISCORD_SETUP.md)
+- [安全政策](docs/SAFETY.md)

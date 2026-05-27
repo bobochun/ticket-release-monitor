@@ -5,11 +5,11 @@ import { usePathname } from "next/navigation";
 import { Activity, History, Radar, Search, Settings } from "lucide-react";
 
 const items = [
-  { href: "/", label: "Dashboard", icon: Radar },
-  { href: "/targets", label: "Targets", icon: Activity },
-  { href: "/history", label: "History", icon: History },
-  { href: "/discovery", label: "Discovery", icon: Search },
-  { href: "/settings", label: "Settings", icon: Settings }
+  { href: "/", label: "總覽", icon: Radar },
+  { href: "/targets", label: "目標", icon: Activity },
+  { href: "/history", label: "紀錄", icon: History },
+  { href: "/discovery", label: "搜尋", icon: Search },
+  { href: "/settings", label: "設定", icon: Settings }
 ];
 
 export function BottomNav() {

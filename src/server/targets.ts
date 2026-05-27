@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type { Target, TargetInput } from "@/src/shared/types";
+import { isPlaceholderUrl } from "@/src/shared/platformDefaults";
+import { AppError } from "./apiErrors";
 import { boolFromDb, ensureDb, getDb, jsonParseArray, jsonStringify } from "./db";
 import { defaultCheckIntervalSeconds, normalizeCheckInterval } from "./settings";
 
@@ -65,6 +67,14 @@ function mapTarget(row: TargetRow): Target {
 
 export function parseTargetInput(input: unknown): TargetInput {
   const parsed = targetSchema.parse(input);
+  if (parsed.enabled && isPlaceholderUrl(parsed.url)) {
+    throw new AppError(
+      "PLACEHOLDER_URL",
+      "請先貼上實際官方售票頁網址，不要啟用模板網址。",
+      400
+    );
+  }
+
   return {
     ...parsed,
     checkIntervalSeconds: normalizeCheckInterval(
@@ -88,11 +98,10 @@ export async function listDueTargets(limit: number): Promise<Target[]> {
   const rows = await db.query<TargetRow>(
     `SELECT * FROM targets
      WHERE enabled = $1
-       AND is_template = $2
-       AND (next_check_at IS NULL OR next_check_at <= $3)
+       AND (next_check_at IS NULL OR next_check_at <= $2)
      ORDER BY COALESCE(next_check_at, created_at) ASC, id ASC
-     LIMIT $4`,
-    db.kind === "postgres" ? [true, false, now, limit] : [1, 0, now, limit]
+     LIMIT $3`,
+    db.kind === "postgres" ? [true, now, limit] : [1, now, limit]
   );
   return rows.map(mapTarget);
 }
@@ -164,6 +173,14 @@ export async function updateTarget(id: number, input: Partial<TargetInput>): Pro
   };
 
   targetSchema.partial().parse(next);
+  if (next.enabled && isPlaceholderUrl(next.url)) {
+    throw new AppError(
+      "PLACEHOLDER_URL",
+      "請先貼上實際官方售票頁網址，不要啟用模板網址。",
+      400
+    );
+  }
+
   const db = await getDb();
   await db.execute(
     `UPDATE targets SET

@@ -1,52 +1,52 @@
-# External Scheduler Setup
+# 外部 Scheduler 設定
 
-Vercel Hobby built-in Cron can run only daily. To check every 5 minutes, use an external scheduler to call the protected cron endpoint:
+Vercel Hobby 內建 Cron 只能 daily。若你想每 5 分鐘檢查一次，請用外部 scheduler 呼叫受保護的 cron endpoint：
 
 ```text
 https://YOUR_DOMAIN/api/cron/check?secret=YOUR_SECRET
 ```
 
-Or:
+或：
 
 ```bash
 curl -H "Authorization: Bearer YOUR_SECRET" https://YOUR_DOMAIN/api/cron/check
 ```
 
-Keep `MAX_TARGETS_PER_CRON=1` or `2` to avoid long Vercel function invocations.
+建議 `MAX_TARGETS_PER_CRON=1` 或 `2`，避免單次 Vercel function 執行太久。
 
-## Option 1: cron-job.org
+## Option 1：cron-job.org
 
-1. Register at cron-job.org.
-2. Create cronjob.
-3. URL:
-
-   ```text
-   https://YOUR_DOMAIN/api/cron/check?secret=YOUR_SECRET
-   ```
-
-4. Method: GET.
-5. Schedule: every 5 minutes.
-6. Save.
-7. Open Ticket Radar `/history` and confirm check runs were added.
-
-## Option 2: UptimeRobot
-
-1. Create monitor.
-2. Monitor type: HTTP(s).
-3. URL:
+1. 到 cron-job.org 註冊。
+2. Create cronjob。
+3. URL 填：
 
    ```text
    https://YOUR_DOMAIN/api/cron/check?secret=YOUR_SECRET
    ```
 
-4. Monitoring interval: 5 minutes.
-5. Save.
+4. Method: GET。
+5. Schedule: every 5 minutes。
+6. Save。
+7. 到 Ticket Radar `/history` 確認 check runs 有新增。
 
-UptimeRobot is an uptime monitor, not a formal cron system. It works for low-frequency triggering, but non-200 responses may be treated as downtime.
+## Option 2：UptimeRobot
 
-## Option 3: GitHub Actions Schedule
+1. Create monitor。
+2. Monitor type: HTTP(s)。
+3. URL 填：
 
-This repository includes `.github/workflows/external-cron.yml`:
+   ```text
+   https://YOUR_DOMAIN/api/cron/check?secret=YOUR_SECRET
+   ```
+
+4. Monitoring interval: 5 minutes。
+5. Save。
+
+UptimeRobot 是 uptime monitor，不是正式 cron system，但可用於低頻率觸發。若 response 非 200，可能被視為 down。
+
+## Option 3：GitHub Actions schedule
+
+本 repo 已包含 `.github/workflows/external-cron.yml`：
 
 ```yaml
 name: External Cron Check
@@ -68,19 +68,19 @@ jobs:
           TICKET_RADAR_CRON_URL: ${{ secrets.TICKET_RADAR_CRON_URL }}
 ```
 
-Set these GitHub repository secrets:
+到 GitHub repo secrets 設：
 
-- `TICKET_RADAR_CRON_SECRET`: same value as Vercel `CRON_SECRET`
-- `TICKET_RADAR_CRON_URL`: `https://YOUR_DOMAIN/api/cron/check`
+- `TICKET_RADAR_CRON_SECRET`：與 Vercel `CRON_SECRET` 相同
+- `TICKET_RADAR_CRON_URL`：例如 `https://YOUR_DOMAIN/api/cron/check`
 
-GitHub Actions schedules are not exact real-time systems and can be delayed, but they are useful for free testing.
+GitHub Actions schedule 不是精準即時系統，可能延遲，但適合免費測試。
 
-## Option 4: Render / Railway / VPS
+## Option 4：Render / Railway / VPS
 
-Run a scheduled command:
+只要定時執行：
 
 ```bash
 curl -H "Authorization: Bearer YOUR_SECRET" https://YOUR_DOMAIN/api/cron/check
 ```
 
-Render, Railway, Fly.io, or a VPS can also host a dedicated long-running worker later. The MVP keeps Vercel as the dashboard and API host.
+即可。未來也可以把真正長期 worker 拆到 Render / Railway / Fly.io / VPS。

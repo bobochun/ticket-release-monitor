@@ -60,7 +60,7 @@ function result(
 
 export function detectFromText(target: Target, text: string, startedAt = Date.now()): CheckResult {
   if (!target.enabled) {
-    return result(target, "DISABLED", "Target is disabled.", startedAt);
+    return result(target, "DISABLED", "監控目標未啟用。", startedAt);
   }
 
   const botHits = keywordHits(text, BOT_CHECK_TEXT);
@@ -68,7 +68,7 @@ export function detectFromText(target: Target, text: string, startedAt = Date.no
     return result(
       target,
       "BOT_CHECK",
-      "Bot check or CAPTCHA detected. Manual handling required.",
+      "偵測到驗證或 bot check，已停止本次檢查，請人工處理。",
       startedAt,
       botHits
     );
@@ -79,7 +79,7 @@ export function detectFromText(target: Target, text: string, startedAt = Date.no
     return result(
       target,
       "QUEUE_DETECTED",
-      "Queue or waiting room detected. Manual handling required.",
+      "偵測到排隊或 waiting room，已停止本次檢查，請人工處理。",
       startedAt,
       queueHits
     );
@@ -90,7 +90,7 @@ export function detectFromText(target: Target, text: string, startedAt = Date.no
     return result(
       target,
       "LOGIN_REQUIRED",
-      "Login wording detected. This app will not automate login.",
+      "偵測到登入需求，本工具不會自動登入，請人工處理。",
       startedAt,
       loginHits
     );
@@ -106,7 +106,7 @@ export function detectFromText(target: Target, text: string, startedAt = Date.no
     return result(
       target,
       "UNAVAILABLE",
-      "Negative keywords or blacklisted areas were found.",
+      "命中排除關鍵字或排除票區。",
       startedAt,
       [...includeHits, ...excludeHits],
       [...areaHits, ...areaBlacklistHits],
@@ -121,7 +121,7 @@ export function detectFromText(target: Target, text: string, startedAt = Date.no
     return result(
       target,
       areaHits.length > 0 || priceHits.length > 0 ? "AVAILABLE" : "POSSIBLE_MATCH",
-      "Possible ticket availability detected. Purchase manually on the official site.",
+      "偵測到可能有票訊號，請自行開啟官方頁面手動購票。",
       startedAt,
       includeHits,
       areaHits,
@@ -132,7 +132,7 @@ export function detectFromText(target: Target, text: string, startedAt = Date.no
   return result(
     target,
     "UNAVAILABLE",
-    "No matching availability signal detected.",
+    "未偵測到符合條件的釋票訊號。",
     startedAt,
     includeHits,
     areaHits,
@@ -144,7 +144,7 @@ export function errorResult(target: Target, error: unknown, startedAt: number): 
   return result(
     target,
     "ERROR",
-    "Target check failed.",
+    "檢查目標時發生錯誤。",
     startedAt,
     [],
     [],

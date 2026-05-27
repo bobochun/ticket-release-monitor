@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { errorResponse } from "@/src/server/apiErrors";
 import { createDiscoveryRule, listDiscoveredCandidates, listDiscoveryRules } from "@/src/server/discovery";
 
 export const dynamic = "force-dynamic";
@@ -12,11 +13,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const rule = await createDiscoveryRule(await request.json());
-    return NextResponse.json({ rule }, { status: 201 });
+    return NextResponse.json({ ok: true, rule }, { status: 201 });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
-      { status: 400 }
-    );
+    return errorResponse(error, 400);
   }
 }

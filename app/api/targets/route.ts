@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { errorResponse } from "@/src/server/apiErrors";
 import { createTarget, listTargets } from "@/src/server/targets";
 
 export const dynamic = "force-dynamic";
@@ -11,11 +12,8 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const target = await createTarget(await request.json());
-    return NextResponse.json({ target }, { status: 201 });
+    return NextResponse.json({ ok: true, target }, { status: 201 });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
-      { status: 400 }
-    );
+    return errorResponse(error, 400);
   }
 }

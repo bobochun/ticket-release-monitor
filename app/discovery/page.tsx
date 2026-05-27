@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import type { DiscoveredCandidate, DiscoveryRule } from "@/src/shared/types";
+import { getPlatformDefault } from "@/src/shared/platformDefaults";
 
 export default function DiscoveryPage() {
   const [rules, setRules] = useState<DiscoveryRule[]>([]);
@@ -26,7 +27,7 @@ export default function DiscoveryPage() {
     setMessage(null);
     const response = await fetch(`/api/discovery-rules/${id}/run`, { method: "POST" });
     const body = await response.json().catch(() => ({}));
-    setMessage(response.ok ? `Found ${(body.candidates || []).length} candidates.` : body.error || "Discovery failed");
+    setMessage(response.ok ? `已找到 ${(body.candidates || []).length} 個候選連結。` : body.error || "候選搜尋失敗。");
     setBusyId(null);
     await load();
   }
@@ -35,7 +36,7 @@ export default function DiscoveryPage() {
     setBusyId(id);
     const response = await fetch(`/api/candidates/${id}/add-target`, { method: "POST" });
     const body = await response.json().catch(() => ({}));
-    setMessage(response.ok ? "Candidate added as a disabled target." : body.error || "Add target failed");
+    setMessage(response.ok ? "已加入監控目標，預設為停用。請確認 URL 後手動啟用。" : body.error || "加入監控目標失敗。");
     setBusyId(null);
     await load();
   }
@@ -43,41 +44,49 @@ export default function DiscoveryPage() {
   return (
     <main className="page-shell">
       <section className="mb-5">
-        <p className="text-sm font-black uppercase tracking-normal text-teal-700">Discovery</p>
-        <h1 className="mt-1 text-3xl font-black tracking-normal">候選連結搜尋</h1>
+        <p className="text-sm font-black uppercase tracking-normal text-teal-700">候選搜尋</p>
+        <h1 className="mt-1 text-3xl font-black tracking-normal">候選活動頁搜尋</h1>
         <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
-          MVP discovery only reads public links from seed pages. It does not login, click purchase flows,
-          bypass verification, or run automatically from production cron.
+          此功能會從你設定的公開入口頁擷取連結，依日期、場地、隊伍、票區關鍵字找可能的活動頁。
+          它不會登入、不會進入購票流程、不會繞過驗證。
         </p>
       </section>
 
       {message ? <p className="surface mb-4 p-3 text-sm font-bold text-teal-800">{message}</p> : null}
 
       <section className="grid gap-3">
-        {rules.map((rule) => (
-          <article key={rule.id} className="surface p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-black">{rule.name}</h2>
-                <p className="mt-1 text-sm font-semibold text-slate-600">
-                  {rule.platform} · max {rule.maxCandidates} candidates · {rule.enabled ? "enabled" : "manual only"}
-                </p>
+        {rules.length === 0 ? (
+          <p className="surface p-4 text-sm font-semibold text-slate-600">
+            尚未建立 discovery rules。可先執行 `npm run seed` 建立預設規則。
+          </p>
+        ) : (
+          rules.map((rule) => (
+            <article key={rule.id} className="surface p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-black">{rule.name}</h2>
+                  <p className="mt-1 text-sm font-semibold text-slate-600">
+                    {getPlatformDefault(rule.platform).labelZh} · 最多 {rule.maxCandidates} 筆 · {rule.enabled ? "已啟用" : "手動執行"}
+                  </p>
+                </div>
+                <button className="btn btn-primary" onClick={() => runRule(rule.id)} disabled={busyId === rule.id}>
+                  <Search size={17} />
+                  {busyId === rule.id ? "搜尋中..." : "手動搜尋候選連結"}
+                </button>
               </div>
-              <button className="btn btn-primary" onClick={() => runRule(rule.id)} disabled={busyId === rule.id}>
-                <Search size={17} />
-                Run
-              </button>
-            </div>
-            <p className="mt-3 break-all text-xs font-semibold text-slate-500">{rule.seedUrls.join(", ")}</p>
-          </article>
-        ))}
+              <p className="mt-3 break-all text-xs font-semibold text-slate-500">{rule.seedUrls.join(", ")}</p>
+            </article>
+          ))
+        )}
       </section>
 
       <section className="mt-5">
-        <h2 className="mb-3 text-xl font-black">Candidates</h2>
+        <h2 className="mb-3 text-xl font-black">候選結果</h2>
         <div className="grid gap-3">
           {candidates.length === 0 ? (
-            <p className="surface p-4 text-sm font-semibold text-slate-600">No candidates yet.</p>
+            <p className="surface p-4 text-sm font-semibold text-slate-600">
+              尚無候選結果。請先手動執行上方規則。
+            </p>
           ) : (
             candidates.map((candidate) => (
               <article key={candidate.id} className="surface p-4">
@@ -88,12 +97,12 @@ export default function DiscoveryPage() {
                       {candidate.url}
                     </a>
                     <p className="mt-2 text-sm text-slate-600">
-                      Score {candidate.score} · {candidate.matchedKeywords.join(", ") || "no keyword details"}
+                      分數 {candidate.score} · {candidate.matchedKeywords.join("、") || "沒有命中細節"}
                     </p>
                   </div>
                   <button className="btn btn-secondary" onClick={() => addTarget(candidate.id)} disabled={busyId === candidate.id || candidate.addedToTargets}>
                     <Plus size={17} />
-                    {candidate.addedToTargets ? "Added" : "Add target"}
+                    {candidate.addedToTargets ? "已加入" : "加入監控目標"}
                   </button>
                 </div>
               </article>

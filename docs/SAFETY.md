@@ -1,31 +1,34 @@
-# Ticket Radar Safety Policy
+# 安全政策
 
-Ticket Radar only performs low-frequency monitoring of public ticket pages.
+票券釋票雷達只做公開售票頁的低頻率監控與通知。
 
-It does not:
+本工具不會：
 
-- login
-- select seats
-- add tickets to cart
-- submit checkout forms
-- submit orders
-- pay
-- bypass CAPTCHA, reCAPTCHA, hCaptcha, Cloudflare Turnstile, bot checks, queues, or waiting rooms
-- use stealth browser patches
-- rotate proxies
-- use CAPTCHA solvers
-- use OCR verification
-- simulate human behavior to avoid protection
-- use multiple accounts, sessions, or IPs to bypass limits
+- 自動登入
+- 自動選位
+- 自動加入購物車
+- 自動提交購票表單
+- 自動送出訂單
+- 自動付款
+- 繞過 CAPTCHA、reCAPTCHA、hCaptcha、Cloudflare Turnstile
+- 繞過 bot check、queue、waiting room
+- 使用 stealth browser patch
+- 使用 proxy rotation
+- 使用第三方 CAPTCHA solver
+- 使用 OCR 驗證碼
+- 模擬真人行為規避網站防護
+- 使用多帳號、多 session、多 IP 規避限制
 
-If CAPTCHA, Cloudflare, Turnstile, hCaptcha, reCAPTCHA, bot checks, queue pages, waiting rooms, or login requirements are detected, the current target check stops and records a safety status for manual handling.
+若偵測到 CAPTCHA、Cloudflare、Turnstile、hCaptcha、reCAPTCHA、bot check、queue、waiting room 或 login required，該 target 本次檢查會停止，並記錄安全狀態：
 
-Every alert includes:
+- `BOT_CHECK`
+- `QUEUE_DETECTED`
+- `LOGIN_REQUIRED`
+
+通知會提醒：
 
 ```text
-Manual purchase required. No login, seat selection, checkout, or payment automation was performed.
+本工具只提供通知。請自行開啟官方售票頁手動購票；系統沒有登入、選位、結帳、付款，也沒有繞過驗證或排隊。
 ```
 
-Users must follow each ticketing site's terms of service and applicable law.
-
-Ticket Radar does not guarantee tickets and does not increase inventory. It only helps users notice public-page changes at a conservative frequency.
+使用者仍須遵守各售票網站服務條款與所在地法律。本工具不保證買到票，也不會增加票券庫存。

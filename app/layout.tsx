@@ -3,8 +3,8 @@ import "./globals.css";
 import { BottomNav } from "@/components/BottomNav";
 
 export const metadata: Metadata = {
-  title: "Ticket Radar / 票券釋票雷達",
-  description: "Safe low-frequency ticket release monitoring dashboard.",
+  title: "票券釋票雷達 / Ticket Radar",
+  description: "低頻率監控公開售票頁，有疑似釋票就通知你。",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

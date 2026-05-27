@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { AppError, errorResponse } from "@/src/server/apiErrors";
 import { deleteTarget, getTarget, updateTarget } from "@/src/server/targets";
 
 export const dynamic = "force-dynamic";
@@ -10,8 +11,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
   const target = await getTarget(Number(id));
   return target
-    ? NextResponse.json({ target })
-    : NextResponse.json({ error: "Target not found" }, { status: 404 });
+    ? NextResponse.json({ ok: true, target })
+    : errorResponse(new AppError("TARGET_NOT_FOUND", "找不到監控目標。", 404), 404);
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
@@ -19,13 +20,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
     const target = await updateTarget(Number(id), await request.json());
     return target
-      ? NextResponse.json({ target })
-      : NextResponse.json({ error: "Target not found" }, { status: 404 });
+      ? NextResponse.json({ ok: true, target })
+      : errorResponse(new AppError("TARGET_NOT_FOUND", "找不到監控目標。", 404), 404);
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : String(error) },
-      { status: 400 }
-    );
+    return errorResponse(error, 400);
   }
 }
 

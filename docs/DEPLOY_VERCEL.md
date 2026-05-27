@@ -1,26 +1,49 @@
-# Deploy Ticket Radar To Vercel
+# Vercel 部署教學
 
-## B + C Plan: Vercel Hobby + External Scheduler
+## B + C Plan：Vercel Hobby + 外部 Scheduler
 
-This project uses two deployment layers:
+本專案採用：
 
-- B plan: Vercel Hobby runs the Dashboard and API. Built-in Vercel Cron is daily so deploys are not blocked by Hobby limits.
-- C plan: an external scheduler calls `/api/cron/check` every 5 minutes for near 5-minute polling.
+- B plan：Vercel Hobby 部署 Dashboard、API routes、資料庫連線。
+- C plan：外部 scheduler 每 5 分鐘呼叫 `/api/cron/check`。
 
-Vercel Hobby built-in Cron can run only daily. If `vercel.json` uses `*/5 * * * *`, Hobby deploys fail. Keep daily cron on Hobby.
+Vercel Hobby 內建 Cron 只能 daily，所以 `vercel.json` 必須保持：
 
-## 1. Push Main To GitHub
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron/check",
+      "schedule": "0 1 * * *"
+    }
+  ]
+}
+```
 
-Push the latest `main` branch to GitHub.
+如果改成 `*/5 * * * *`，Hobby deploy 會失敗。
 
-## 2. Import Project
+## 1. Push main 到 GitHub
 
-1. Open Vercel Dashboard.
-2. Click New Project.
-3. Import the GitHub repository.
-4. Framework preset: Next.js.
+確認 main branch 已 push。
 
-## 3. Add Environment Variables
+## 2. Vercel New Project
+
+1. 打開 Vercel Dashboard。
+2. New Project。
+3. Import GitHub repo。
+4. Framework 選 Next.js。
+
+## 3. 建立 Postgres
+
+可用：
+
+- Neon Postgres
+- Vercel Postgres
+- 其他 hosted Postgres
+
+取得 `POSTGRES_URL` 或 `DATABASE_URL`。
+
+## 4. 設定 Vercel Env
 
 ```bash
 POSTGRES_URL=
@@ -35,86 +58,90 @@ MAX_TARGETS_PER_CRON=2
 MAX_CONCURRENT_CHECKS=1
 CHECK_MODE=fetch
 NAVIGATION_TIMEOUT_MS=30000
+NOTIFICATION_DEDUPE_MINUTES=30
+ERROR_DEDUPE_MINUTES=15
+QUIET_HOURS_ENABLED=false
+QUIET_HOURS_START=23:30
+QUIET_HOURS_END=07:30
+QUIET_HOURS_TIMEZONE=Asia/Taipei
 ```
 
-Use Vercel Postgres, Neon Postgres, or another hosted Postgres provider. `POSTGRES_URL` or `DATABASE_URL` must point to Postgres in production.
+`CRON_SECRET` 請用長一點的隨機字串。不要把 secret 放在公開文件或前端畫面。
 
-## 4. Deploy
+## 5. Deploy / Redeploy
 
-Deploy from Vercel. The app builds as a standard Next.js App Router project.
+設定 env 後部署。若有改 env，請 Redeploy，讓 serverless functions 讀到新值。
 
-`vercel.json` is Hobby-safe:
+## 6. 初始化 DB
 
-```json
-{
-  "crons": [
-    {
-      "path": "/api/cron/check",
-      "schedule": "0 1 * * *"
-    }
-  ]
-}
-```
-
-This daily cron keeps the Vercel project deployable on Hobby. It is not intended to provide 5-minute monitoring by itself.
-
-## 5. Initialize Database
-
-After creating the production Postgres database, initialize schema from a trusted local machine:
+從可信任的本機執行：
 
 ```bash
 POSTGRES_URL="postgres://..." npm run db:init
 ```
 
-## 6. Seed Targets
+## 7. Seed 預設資料
 
 ```bash
 POSTGRES_URL="postgres://..." npm run seed
 ```
 
-Seed includes enabled examples, disabled templates, and disabled discovery rules. Do not enable placeholder URLs.
+Seed 會建立 enabled examples、disabled templates、discovery rules。不要直接啟用 placeholder URL。
 
-## 7. Confirm Dashboard
+## 8. 確認 production domain
 
-Open the production domain and confirm:
+打開 production domain，確認：
 
-- `/` dashboard loads
-- `/targets` shows targets
-- `/history` loads
-- `/settings` shows configured status without exposing secrets
+- `/` Dashboard 可開
+- `/targets` 可新增 target
+- `/history` 可看紀錄
+- `/settings` 可測試通知
 
-## 8. Manual Cron Test
+## 9. 手動測試 Cron
 
-Header auth:
+Header 驗證：
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" https://YOUR_DOMAIN/api/cron/check
 ```
 
-Query secret auth:
+Query secret：
 
 ```text
 https://YOUR_DOMAIN/api/cron/check?secret=YOUR_SECRET
 ```
 
-Then open `/history` and confirm check runs were added.
+成功回應會包含：
 
-## 9. Configure External Scheduler
+```json
+{
+  "ok": true,
+  "trigger": "manual",
+  "checked": 0,
+  "skipped": 0,
+  "results": []
+}
+```
 
-Set an external scheduler to call `/api/cron/check` every 5 minutes. Supported options include:
+## 10. 設定外部 Scheduler
 
-- cron-job.org
-- UptimeRobot
-- GitHub Actions schedule
-- Render cron job
-- Railway scheduled job
-- VPS cron
+每 5 分鐘呼叫：
 
-See [EXTERNAL_SCHEDULER.md](EXTERNAL_SCHEDULER.md).
+```text
+https://YOUR_DOMAIN/api/cron/check?secret=YOUR_SECRET
+```
 
-## 10. If You Upgrade To Vercel Pro
+或用 header：
 
-If you upgrade to Vercel Pro, you can change `vercel.json` back to 5-minute built-in Vercel Cron:
+```bash
+curl -H "Authorization: Bearer YOUR_SECRET" https://YOUR_DOMAIN/api/cron/check
+```
+
+請看 [EXTERNAL_SCHEDULER.md](EXTERNAL_SCHEDULER.md)。
+
+## 升級 Vercel Pro 後
+
+如果未來升級 Vercel Pro，可以把 `vercel.json` 改回：
 
 ```json
 {
@@ -127,15 +154,4 @@ If you upgrade to Vercel Pro, you can change `vercel.json` back to 5-minute buil
 }
 ```
 
-Hobby plan should keep the daily schedule, or deploy will fail.
-
-## Production Fit
-
-The Vercel Hobby version is ideal for:
-
-- Dashboard
-- Manual checks
-- API endpoint for external scheduler polling
-- Telegram and Discord alerts
-
-For stronger 24/7 worker reliability, deploy a dedicated worker on Railway, Render, Fly.io, or a VPS.
+Hobby plan 請保持 daily，否則 deploy 會失敗。

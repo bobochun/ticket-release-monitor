@@ -8,7 +8,7 @@ export const maxDuration = 60;
 export async function GET(request: Request) {
   const authorization = authorizeCronRequest(request);
   if (!authorization.authorized) {
-    return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ ok: false, error: "未授權的排程請求。", code: "UNAUTHORIZED" }, { status: 401 });
   }
 
   return NextResponse.json(await runDueTargetChecks(authorization.trigger));

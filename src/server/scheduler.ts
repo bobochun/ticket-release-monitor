@@ -4,21 +4,13 @@ import { notifyCheckResult } from "./notifications";
 import { saveCheckRun } from "./runs";
 import { listDueTargets, markTargetChecked } from "./targets";
 import { getEnvNumber } from "./settings";
+import { isPlaceholderUrl } from "@/src/shared/platformDefaults";
 
 export type CronTrigger = "vercel-cron" | "external-scheduler" | "manual";
 
 export type CronAuthorization =
   | { authorized: true; trigger: CronTrigger }
   | { authorized: false; trigger: null };
-
-function isPlaceholderUrl(url: string): boolean {
-  const normalized = url.toLowerCase();
-  return (
-    normalized.includes("your_event_url") ||
-    normalized.includes("your_event_id") ||
-    normalized.includes("example.com")
-  );
-}
 
 export async function runDueTargetChecks(trigger?: CronTrigger): Promise<SchedulerSummary> {
   const maxTargetsPerCron = getEnvNumber("MAX_TARGETS_PER_CRON", 2);
@@ -54,13 +46,17 @@ export async function runDueTargetChecks(trigger?: CronTrigger): Promise<Schedul
     const result = await checkTarget(target);
     await saveCheckRun(result);
     await markTargetChecked(target.id, target.checkIntervalSeconds);
-    await notifyCheckResult(result);
+    await notifyCheckResult(result, target.platform);
     results.push(result);
   }
 
   return {
     ok: true,
     trigger,
+    message:
+      targets.length === 0
+        ? "目前沒有到期需要檢查的目標。"
+        : "排程檢查已完成。",
     checked: results.length,
     skipped: skippedTargets.length,
     dueTargets: targets.length,

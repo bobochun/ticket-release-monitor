@@ -123,6 +123,7 @@ export type DiscoveryRuleInput = {
 
 export type SchedulerSummary = {
   ok: boolean;
+  message?: string;
   trigger?: "vercel-cron" | "external-scheduler" | "manual";
   checked: number;
   skipped: number;
