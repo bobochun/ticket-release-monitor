@@ -23,11 +23,25 @@ function usePostgres(): boolean {
   return Boolean(url?.startsWith("postgres://") || url?.startsWith("postgresql://"));
 }
 
+function isVercelRuntime(): boolean {
+  return process.env.VERCEL === "1" || Boolean(process.env.VERCEL_ENV);
+}
+
+function missingVercelDatabaseError(): Error {
+  return new Error(
+    "Database is not configured for Vercel. Set POSTGRES_URL or DATABASE_URL to a valid postgres:// or postgresql:// connection string in Vercel Environment Variables, then redeploy. SQLite fallback is local-development only."
+  );
+}
+
 export async function getDb(): Promise<DatabaseClient> {
   if (!clientPromise) {
-    clientPromise = usePostgres()
-      ? import("./postgres").then(({ createPostgresClient }) => createPostgresClient(databaseUrl()!))
-      : import("./sqlite").then(({ createSqliteClient }) => createSqliteClient());
+    if (!usePostgres() && isVercelRuntime()) {
+      clientPromise = Promise.reject(missingVercelDatabaseError());
+    } else {
+      clientPromise = usePostgres()
+        ? import("./postgres").then(({ createPostgresClient }) => createPostgresClient(databaseUrl()!))
+        : import("./sqlite").then(({ createSqliteClient }) => createSqliteClient());
+    }
   }
 
   return clientPromise;
