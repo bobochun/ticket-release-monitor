@@ -5,18 +5,68 @@ import { listNotificationEvents } from "@/src/server/notifications";
 import { countAlerts, listRuns } from "@/src/server/runs";
 import { getConfiguredStatus } from "@/src/server/settings";
 import { countTargets, listTargets } from "@/src/server/targets";
+import type { NotificationEvent, Target, CheckRun } from "@/src/shared/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+type DashboardData = {
+  targetCounts: {
+    enabledTargets: number;
+    activeTargets: number;
+    disabledTemplates: number;
+  };
+  runs: CheckRun[];
+  alerts: number;
+  targets: Target[];
+  notifications: NotificationEvent[];
+  loadError: string | null;
+};
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+async function loadDashboardData(): Promise<DashboardData> {
+  try {
+    const [targetCounts, runs, alerts, targets, notifications] = await Promise.all([
+      countTargets(),
+      listRuns(5),
+      countAlerts(),
+      listTargets(),
+      listNotificationEvents(20)
+    ]);
+
+    return {
+      targetCounts,
+      runs,
+      alerts,
+      targets,
+      notifications,
+      loadError: null
+    };
+  } catch (error) {
+    const message = getErrorMessage(error);
+    console.error("Dashboard data load failed", error);
+
+    return {
+      targetCounts: {
+        enabledTargets: 0,
+        activeTargets: 0,
+        disabledTemplates: 0
+      },
+      runs: [],
+      alerts: 0,
+      targets: [],
+      notifications: [],
+      loadError: message
+    };
+  }
+}
+
 export default async function DashboardPage() {
-  const [targetCounts, runs, alerts, targets, notifications] = await Promise.all([
-    countTargets(),
-    listRuns(5),
-    countAlerts(),
-    listTargets(),
-    listNotificationEvents(20)
-  ]);
+  const { targetCounts, runs, alerts, targets, notifications, loadError } = await loadDashboardData();
   const settings = getConfiguredStatus();
 
   return (
@@ -29,6 +79,23 @@ export default async function DashboardPage() {
         </p>
       </section>
 
+      {loadError ? (
+        <section className="surface mb-4 border border-amber-200 bg-amber-50 p-4">
+          <div className="flex items-center gap-2 text-amber-800">
+            <AlertTriangle size={22} />
+            <h2 className="text-lg font-black">資料庫尚未正確連線</h2>
+          </div>
+          <p className="mt-2 text-sm font-semibold leading-6 text-amber-900">
+            首頁已切換成安全降級模式，避免 Next.js server-side exception。請在 Vercel Environment Variables 設定有效的
+            <code className="mx-1 rounded bg-white px-1 py-0.5">POSTGRES_URL</code>
+            或
+            <code className="mx-1 rounded bg-white px-1 py-0.5">DATABASE_URL</code>
+            ，必須是 postgres:// 或 postgresql:// 開頭，然後重新部署。
+          </p>
+          <p className="mt-2 text-xs font-bold text-amber-800">錯誤摘要：{loadError}</p>
+        </section>
+      ) : null}
+
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="啟用中的監控" value={targetCounts.activeTargets} icon={<TargetIcon size={22} />} />
         <StatCard label="已啟用項目" value={targetCounts.enabledTargets} icon={<Radar size={22} />} />
@@ -36,7 +103,7 @@ export default async function DashboardPage() {
         <StatCard label="近期通知" value={alerts} icon={<Bell size={22} />} />
       </section>
 
-      {targetCounts.activeTargets === 0 ? (
+      {targetCounts.activeTargets === 0 && !loadError ? (
         <section className="surface mt-4 p-4">
           <h2 className="text-lg font-black">尚未建立監控目標</h2>
           <ol className="mt-3 grid gap-2 text-sm font-semibold text-slate-700">
