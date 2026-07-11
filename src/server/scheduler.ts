@@ -3,17 +3,17 @@ import { checkTarget } from "./checker";
 import { notifyCheckResult } from "./notifications";
 import { saveCheckRun } from "./runs";
 import { listDueTargets, markTargetChecked } from "./targets";
-import { getEnvNumber } from "./settings";
+import { getEnvBoolean, getEnvNumber, type SchedulerTrigger } from "./settings";
 import { isPlaceholderUrl } from "@/src/shared/platformDefaults";
 
-export type CronTrigger = "vercel-cron" | "external-scheduler" | "manual";
+export type CronTrigger = SchedulerTrigger;
 
 export type CronAuthorization =
   | { authorized: true; trigger: CronTrigger }
   | { authorized: false; trigger: null };
 
 export async function runDueTargetChecks(trigger?: CronTrigger): Promise<SchedulerSummary> {
-  const maxTargetsPerCron = getEnvNumber("MAX_TARGETS_PER_CRON", 2);
+  const maxTargetsPerCron = getEnvNumber("MAX_TARGETS_PER_CRON", 1);
   const targets = await listDueTargets(maxTargetsPerCron * 5);
   const results = [];
   const skippedTargets: SchedulerSummary["skippedTargets"] = [];
@@ -43,11 +43,23 @@ export async function runDueTargetChecks(trigger?: CronTrigger): Promise<Schedul
       continue;
     }
 
-    const result = await checkTarget(target);
-    await notifyCheckResult(result, target.platform);
-    await saveCheckRun(result);
-    await markTargetChecked(target.id, target.checkIntervalSeconds);
-    results.push(result);
+    try {
+      const result = await checkTarget(target);
+      await notifyCheckResult(result, target.platform);
+      await saveCheckRun(result);
+      await markTargetChecked(target.id, target.checkIntervalSeconds);
+      results.push(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Scheduled target failed: ${target.id} ${target.name}`, error);
+      skippedTargets.push({
+        id: target.id,
+        name: target.name,
+        url: target.url,
+        reason: `Target processing failed: ${message}`
+      });
+      await markTargetChecked(target.id, target.checkIntervalSeconds).catch(() => undefined);
+    }
   }
 
   return {
@@ -56,7 +68,9 @@ export async function runDueTargetChecks(trigger?: CronTrigger): Promise<Schedul
     message:
       targets.length === 0
         ? "目前沒有到期需要檢查的目標。"
-        : "排程檢查已完成。",
+        : skippedTargets.length > 0 && results.length === 0
+          ? "排程已完成，但本次目標皆被略過或發生錯誤。"
+          : "排程檢查已完成。",
     checked: results.length,
     skipped: skippedTargets.length,
     dueTargets: targets.length,
@@ -78,7 +92,9 @@ export function authorizeCronRequest(request: Request): CronAuthorization {
   if (isVercelCron) return { authorized: true, trigger: "vercel-cron" };
   if (!secret) return { authorized: false, trigger: null };
   if (auth === `Bearer ${secret}`) return { authorized: true, trigger: "external-scheduler" };
-  if (url.searchParams.get("secret") === secret) return { authorized: true, trigger: "manual" };
+  if (getEnvBoolean("ALLOW_CRON_SECRET_QUERY", true) && url.searchParams.get("secret") === secret) {
+    return { authorized: true, trigger: "manual" };
+  }
   return { authorized: false, trigger: null };
 }
 
