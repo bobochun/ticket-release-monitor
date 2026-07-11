@@ -1,7 +1,8 @@
-import { AlertTriangle, Bell, Clock, Radar, ShieldCheck, Target as TargetIcon } from "lucide-react";
+import { AlertTriangle, Bell, Clock, Database, Radar, ShieldCheck, Target as TargetIcon } from "lucide-react";
 import { RunTable } from "@/components/RunTable";
 import { StatCard } from "@/components/StatCard";
 import { listNotificationEvents } from "@/src/server/notifications";
+import { publicErrorInfo, type PublicErrorInfo } from "@/src/server/publicErrors";
 import { countAlerts, listRuns } from "@/src/server/runs";
 import { getConfiguredStatus } from "@/src/server/settings";
 import { countTargets, listTargets } from "@/src/server/targets";
@@ -20,20 +21,15 @@ type DashboardData = {
   alerts: number;
   targets: Target[];
   notifications: NotificationEvent[];
-  loadError: string | null;
+  loadError: PublicErrorInfo | null;
 };
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
-}
 
 async function loadDashboardData(): Promise<DashboardData> {
   try {
     const [targetCounts, runs, alerts, targets, notifications] = await Promise.all([
       countTargets(),
       listRuns(5),
-      countAlerts(),
+      countAlerts(24),
       listTargets(),
       listNotificationEvents(20)
     ]);
@@ -47,9 +43,7 @@ async function loadDashboardData(): Promise<DashboardData> {
       loadError: null
     };
   } catch (error) {
-    const message = getErrorMessage(error);
     console.error("Dashboard data load failed", error);
-
     return {
       targetCounts: {
         enabledTargets: 0,
@@ -60,9 +54,16 @@ async function loadDashboardData(): Promise<DashboardData> {
       alerts: 0,
       targets: [],
       notifications: [],
-      loadError: message
+      loadError: publicErrorInfo(error)
     };
   }
+}
+
+function schedulerProfileLabel(profile: string): string {
+  if (profile === "eco") return "省電（每小時）";
+  if (profile === "balanced") return "平衡（每 30 分鐘）";
+  if (profile === "burst") return "密集（依外部排程）";
+  return "自訂";
 }
 
 export default async function DashboardPage() {
@@ -83,16 +84,12 @@ export default async function DashboardPage() {
         <section className="surface mb-4 border border-amber-200 bg-amber-50 p-4">
           <div className="flex items-center gap-2 text-amber-800">
             <AlertTriangle size={22} />
-            <h2 className="text-lg font-black">資料庫尚未正確連線</h2>
+            <h2 className="text-lg font-black">資料庫目前無法使用</h2>
           </div>
-          <p className="mt-2 text-sm font-semibold leading-6 text-amber-900">
-            首頁已切換成安全降級模式，避免 Next.js server-side exception。請在 Vercel Environment Variables 設定有效的
-            <code className="mx-1 rounded bg-white px-1 py-0.5">POSTGRES_URL</code>
-            或
-            <code className="mx-1 rounded bg-white px-1 py-0.5">DATABASE_URL</code>
-            ，必須是 postgres:// 或 postgresql:// 開頭，然後重新部署。
+          <p className="mt-2 text-sm font-semibold leading-6 text-amber-900">{loadError.message}</p>
+          <p className="mt-2 text-xs font-bold text-amber-800">
+            錯誤代碼：{loadError.code}。首頁已切換成安全降級模式，完整錯誤只會寫入 Vercel runtime logs。
           </p>
-          <p className="mt-2 text-xs font-bold text-amber-800">錯誤摘要：{loadError}</p>
         </section>
       ) : null}
 
@@ -100,7 +97,7 @@ export default async function DashboardPage() {
         <StatCard label="啟用中的監控" value={targetCounts.activeTargets} icon={<TargetIcon size={22} />} />
         <StatCard label="已啟用項目" value={targetCounts.enabledTargets} icon={<Radar size={22} />} />
         <StatCard label="未啟用模板" value={targetCounts.disabledTemplates} icon={<Clock size={22} />} />
-        <StatCard label="近期通知" value={alerts} icon={<Bell size={22} />} />
+        <StatCard label="近 24 小時警示" value={alerts} icon={<Bell size={22} />} />
       </section>
 
       {targetCounts.activeTargets === 0 && !loadError ? (
@@ -125,7 +122,7 @@ export default async function DashboardPage() {
         </section>
       ) : null}
 
-      <section className="mt-4 grid gap-3 lg:grid-cols-2">
+      <section className="mt-4 grid gap-3 lg:grid-cols-3">
         <div className="surface p-4">
           <div className="flex items-center gap-2 text-teal-800">
             <ShieldCheck size={22} />
@@ -135,35 +132,61 @@ export default async function DashboardPage() {
             本工具只做公開頁面低頻率監控與通知；不會登入、選位、加入購物車、結帳、付款，也不會繞過驗證或排隊系統。
           </p>
         </div>
+
         <div className="surface p-4">
-          <div className="flex items-center gap-2 text-amber-700">
-            <AlertTriangle size={22} />
-            <h2 className="text-lg font-black">排程模式</h2>
+          <div className="flex items-center gap-2 text-teal-800">
+            <Database size={22} />
+            <h2 className="text-lg font-black">資料庫</h2>
           </div>
           <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
             <div>
-              <dt className="font-bold text-slate-500">Vercel 內建 Cron</dt>
-              <dd className="font-black">每日 01:00</dd>
+              <dt className="font-bold text-slate-500">連線設定</dt>
+              <dd className="font-black">{settings.databaseConfigured ? "已設定" : "未設定"}</dd>
             </div>
             <div>
-              <dt className="font-bold text-slate-500">外部 Scheduler</dt>
-              <dd className="font-black">建議每 5 分鐘</dd>
+              <dt className="font-bold text-slate-500">使用變數</dt>
+              <dd className="font-black">{settings.databaseVariable}</dd>
+            </div>
+            <div>
+              <dt className="font-bold text-slate-500">自動 migration</dt>
+              <dd className="font-black">{settings.autoDbMigrate ? "啟用" : "關閉"}</dd>
+            </div>
+            <div>
+              <dt className="font-bold text-slate-500">最大連線</dt>
+              <dd className="font-black">{settings.dbMaxConnections}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div className="surface p-4">
+          <div className="flex items-center gap-2 text-amber-700">
+            <AlertTriangle size={22} />
+            <h2 className="text-lg font-black">排程與用量</h2>
+          </div>
+          <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <dt className="font-bold text-slate-500">省資源模式</dt>
+              <dd className="font-black">{schedulerProfileLabel(settings.schedulerProfile)}</dd>
+            </div>
+            <div>
+              <dt className="font-bold text-slate-500">目前閘門</dt>
+              <dd className="font-black">{settings.schedulerAllowedNow ? "允許" : "略過"}</dd>
+            </div>
+            <div>
+              <dt className="font-bold text-slate-500">外部排程建議</dt>
+              <dd className="font-black">每 {settings.externalSchedulerIntervalMinutes} 分鐘</dd>
             </div>
             <div>
               <dt className="font-bold text-slate-500">每次最多檢查</dt>
               <dd className="font-black">{settings.maxTargetsPerCron}</dd>
             </div>
             <div>
-              <dt className="font-bold text-slate-500">目前 Check Mode</dt>
+              <dt className="font-bold text-slate-500">允許分鐘</dt>
+              <dd className="font-black">{settings.schedulerAllowedMinutes?.join("、") ?? "全部"}</dd>
+            </div>
+            <div>
+              <dt className="font-bold text-slate-500">Check Mode</dt>
               <dd className="font-black">{settings.checkMode}</dd>
-            </div>
-            <div>
-              <dt className="font-bold text-slate-500">Cron Secret</dt>
-              <dd className="font-black">{settings.cronSecretConfigured ? "已設定" : "未設定"}</dd>
-            </div>
-            <div>
-              <dt className="font-bold text-slate-500">實際頻率</dt>
-              <dd className="font-black">受 target interval 限制</dd>
             </div>
           </dl>
         </div>
