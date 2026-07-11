@@ -1,11 +1,18 @@
 import postgres from "postgres";
 import type { DatabaseClient, QueryParam } from "./schema";
 
+function envNumber(name: string, fallback: number): number {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
 export function createPostgresClient(url: string): DatabaseClient {
   const sql = postgres(url, {
-    max: 3,
-    idle_timeout: 20,
-    connect_timeout: 20
+    max: envNumber("DB_MAX_CONNECTIONS", 1),
+    idle_timeout: envNumber("DB_IDLE_TIMEOUT_SECONDS", 5),
+    connect_timeout: envNumber("DB_CONNECT_TIMEOUT_SECONDS", 10),
+    prepare: false,
+    onnotice: () => undefined
   });
 
   return {
