@@ -27,7 +27,7 @@ function schema(
       platform TEXT NOT NULL DEFAULT 'generic',
       url TEXT NOT NULL,
       enabled ${booleanType} NOT NULL DEFAULT ${trueDefault},
-      check_interval_seconds INTEGER NOT NULL DEFAULT 180,
+      check_interval_seconds INTEGER NOT NULL DEFAULT 1800,
       timeout_ms INTEGER NOT NULL DEFAULT 30000,
       include_keywords_json TEXT NOT NULL DEFAULT '[]',
       exclude_keywords_json TEXT NOT NULL DEFAULT '[]',
@@ -123,6 +123,9 @@ function schema(
     )`,
     "CREATE INDEX IF NOT EXISTS idx_targets_due ON targets (enabled, is_template, next_check_at)",
     "CREATE INDEX IF NOT EXISTS idx_runs_checked_at ON check_runs (checked_at)",
+    "CREATE INDEX IF NOT EXISTS idx_runs_status_checked ON check_runs (status, checked_at)",
+    "CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notification_events (created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_notifications_dedupe ON notification_events (type, channel, title, url, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_candidates_rule ON discovered_candidates (rule_id)"
   ];
 }

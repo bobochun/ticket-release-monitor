@@ -114,9 +114,8 @@ export async function saveCheckRun(result: CheckResult): Promise<CheckRun> {
     ]
   );
 
-  const saved = row ? await getRun(row.id) : null;
-  if (!saved) throw new Error("Check run was not saved");
-  return saved;
+  if (!row) throw new Error("Check run was not saved");
+  return { id: row.id, ...result };
 }
 
 function deriveMatchSummary(row: CheckRunRow): MatchSummary {
@@ -159,11 +158,15 @@ export async function countRecentRuns(): Promise<number> {
   return Number(row?.count ?? 0);
 }
 
-export async function countAlerts(): Promise<number> {
+export async function countAlerts(hours = 24): Promise<number> {
   await ensureDb();
   const db = await getDb();
+  const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
   const row = await db.queryOne<{ count: number }>(
-    "SELECT COUNT(*) AS count FROM check_runs WHERE status IN ('AVAILABLE','POSSIBLE_MATCH','BOT_CHECK','QUEUE_DETECTED','LOGIN_REQUIRED','ERROR')"
+    `SELECT COUNT(*) AS count FROM check_runs
+     WHERE status IN ('AVAILABLE','POSSIBLE_MATCH','BOT_CHECK','QUEUE_DETECTED','LOGIN_REQUIRED','ERROR')
+       AND checked_at >= $1`,
+    [cutoff]
   );
   return Number(row?.count ?? 0);
 }

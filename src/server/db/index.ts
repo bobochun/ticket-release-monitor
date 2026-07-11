@@ -19,12 +19,21 @@ function databaseUrl(): string | undefined {
 }
 
 function usePostgres(): boolean {
-  const url = databaseUrl();
-  return Boolean(url?.startsWith("postgres://") || url?.startsWith("postgresql://"));
+  return Boolean(databaseUrl());
 }
 
 function isVercelRuntime(): boolean {
   return process.env.VERCEL === "1" || Boolean(process.env.VERCEL_ENV);
+}
+
+function envBoolean(name: string, fallback: boolean): boolean {
+  const value = process.env[name];
+  if (value === undefined || value === "") return fallback;
+  return value === "1" || value.toLowerCase() === "true" || value.toLowerCase() === "yes";
+}
+
+function shouldAutoMigrate(): boolean {
+  return envBoolean("AUTO_DB_MIGRATE", !isVercelRuntime());
 }
 
 function missingVercelDatabaseError(): Error {
@@ -33,18 +42,36 @@ function missingVercelDatabaseError(): Error {
   );
 }
 
+export function getDatabaseRuntimeStatus() {
+  return {
+    configured: usePostgres() || !isVercelRuntime(),
+    provider: usePostgres() ? "postgres" : isVercelRuntime() ? "missing" : "sqlite",
+    autoMigrate: shouldAutoMigrate(),
+    runtime: isVercelRuntime() ? "vercel" : "local"
+  } as const;
+}
+
 export async function getDb(): Promise<DatabaseClient> {
   if (!clientPromise) {
-    if (!usePostgres() && isVercelRuntime()) {
-      clientPromise = Promise.reject(missingVercelDatabaseError());
-    } else {
-      clientPromise = usePostgres()
+    const nextPromise = !usePostgres() && isVercelRuntime()
+      ? Promise.reject<DatabaseClient>(missingVercelDatabaseError())
+      : usePostgres()
         ? import("./postgres").then(({ createPostgresClient }) => createPostgresClient(databaseUrl()!))
         : import("./sqlite").then(({ createSqliteClient }) => createSqliteClient());
-    }
+
+    clientPromise = nextPromise;
+    void nextPromise.catch(() => {
+      if (clientPromise === nextPromise) clientPromise = null;
+      initializedPromise = null;
+    });
   }
 
   return clientPromise;
+}
+
+export async function checkDbConnection(): Promise<void> {
+  const db = await getDb();
+  await db.queryOne<{ ok: number }>("SELECT 1 AS ok");
 }
 
 export async function initDb(): Promise<void> {
@@ -60,7 +87,17 @@ export async function initDb(): Promise<void> {
 }
 
 export async function ensureDb(): Promise<void> {
-  initializedPromise ??= initDb();
+  if (!shouldAutoMigrate()) {
+    await getDb();
+    return;
+  }
+
+  if (!initializedPromise) {
+    initializedPromise = initDb().catch((error) => {
+      initializedPromise = null;
+      throw error;
+    });
+  }
   await initializedPromise;
 }
 
